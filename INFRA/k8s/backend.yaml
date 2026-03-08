@@ -1,0 +1,163 @@
+# =============================================================================
+# HydroFlow Backend — Kubernetes Manifest
+# Namespace: hydroflow
+# Registry:  192.168.100.206 (Gitea container registry, self-hosted)
+# Apply:     kubectl apply -f backend.yaml
+# =============================================================================
+
+
+# =============================================================================
+# ClusterIP Service — reachable inside the cluster only
+# DNS: hydroflow-backend.hydroflow.svc.cluster.local:3000
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: hydroflow-backend
+  namespace: hydroflow
+  labels:
+    app: hydroflow-backend
+    app.kubernetes.io/part-of: hydroflow
+spec:
+  type: ClusterIP
+  selector:
+    app: hydroflow-backend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+
+
+---
+# =============================================================================
+# Deployment — 1 replica, phone workers only, ARM64
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydroflow-backend
+  namespace: hydroflow
+  labels:
+    app: hydroflow-backend
+    app.kubernetes.io/part-of: hydroflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hydroflow-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # Zero-downtime — wait for new pod before killing old
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: hydroflow-backend
+        app.kubernetes.io/part-of: hydroflow
+    spec:
+      # -----------------------------------------------------------------------
+      # Schedule only on phone worker nodes (one61 / one62 / one6t)
+      # Excludes k3master which carries the control plane
+      # -----------------------------------------------------------------------
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+        # Prefer a different node than PostgreSQL for resilience
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 80
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: postgres
+                topologyKey: kubernetes.io/hostname
+
+      # Pull from private Gitea registry
+      # Create this secret with:
+      #   kubectl create secret docker-registry gitea-registry \
+      #     --namespace hydroflow \
+      #     --docker-server=192.168.100.206 \
+      #     --docker-username=<your-gitea-user> \
+      #     --docker-password=<your-gitea-token>
+      imagePullSecrets:
+        - name: gitea-registry
+
+      containers:
+        - name: hydroflow-backend
+          # Update the tag on each build/push cycle (use git short SHA in CI)
+          image: 192.168.100.206/ivemcfire/hydroflow-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          # -----------------------------------------------------------------
+          # Environment variables
+          # -----------------------------------------------------------------
+          env:
+            # MQTT broker — fixed MetalLB IP for ESP32 sensors
+            - name: MQTT_URL
+              value: "mqtt://192.168.100.207:1883"
+
+            # Pull password from the existing postgres-secret
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+
+            # K8s resolves $(POSTGRES_PASSWORD) from the env var above
+            # Username and DB match values encoded in postgres-secret
+            - name: DATABASE_URL
+              value: "postgresql://hydroflow_user:$(POSTGRES_PASSWORD)@postgres.hydroflow.svc.cluster.local:5432/hydroflow"
+
+            - name: PORT
+              value: "3000"
+
+            - name: NODE_ENV
+              value: "production"
+
+          # -----------------------------------------------------------------
+          # Resource limits — tuned for ARM64 phone workers (6–8 GB RAM)
+          # -----------------------------------------------------------------
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+
+          # -----------------------------------------------------------------
+          # Probes — use the Express /healthz and /readyz endpoints
+          # -----------------------------------------------------------------
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 5   # Give DB time to accept connections
+
+          # Graceful shutdown — lets in-flight MQTT messages finish
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+
+      terminationGracePeriodSeconds: 30
