@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Firmware (PlatformIO)
+.pio/
+
+# Frontend (Angular)
+.angular/
+dist/
+coverage/
+
+# Environment & Secrets
+.env
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

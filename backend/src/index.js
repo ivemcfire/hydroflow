@@ -1,18 +1,18 @@
-'use strict';
+"use strict";
 
-const mqtt    = require('mqtt');
-const { Pool } = require('pg');
-const express  = require('express');
+const mqtt = require("mqtt");
+const { Pool } = require("pg");
+const express = require("express");
 
 // ---------------------------------------------------------------------------
 // Config — injected via K8s env vars / secrets
 // ---------------------------------------------------------------------------
-const MQTT_URL     = process.env.MQTT_URL     || 'mqtt://localhost:1883';
+const MQTT_URL = process.env.MQTT_URL || "mqtt://localhost:1883";
 const DATABASE_URL = process.env.DATABASE_URL;
-const PORT         = process.env.PORT         || 3000;
+const PORT = process.env.PORT || 3000;
 
 if (!DATABASE_URL) {
-  console.error('[FATAL] DATABASE_URL is not set');
+  console.error("[FATAL] DATABASE_URL is not set");
   process.exit(1);
 }
 
@@ -26,11 +26,16 @@ const db = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
+// ---------------------------------------------------------------------------
+// Logic State (In-Memory)
+// ---------------------------------------------------------------------------
+const alertTimers = {};
+
 async function initDB() {
   const client = await db.connect();
   try {
     // Verify connection
-    const { rows } = await client.query('SELECT NOW() AS server_time');
+    const { rows } = await client.query("SELECT NOW() AS server_time");
     console.log(`[DB]   Connected — server time: ${rows[0].server_time}`);
 
     // Create sensor_readings table if it doesn't exist
@@ -45,7 +50,7 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_id
         ON sensor_readings (sensor_id, received_at DESC);
     `);
-    console.log('[DB]   Table sensor_readings ready');
+    console.log("[DB]   Table sensor_readings ready");
   } finally {
     client.release();
   }
@@ -56,30 +61,30 @@ async function initDB() {
 // ---------------------------------------------------------------------------
 function initMQTT() {
   const client = mqtt.connect(MQTT_URL, {
-    clientId:      `hydroflow-backend-${process.pid}`,
+    clientId: `hydroflow-backend-${process.pid}`,
     reconnectPeriod: 3000,
-    connectTimeout:  10000,
+    connectTimeout: 10000,
   });
 
-  client.on('connect', () => {
+  client.on("connect", () => {
     console.log(`[MQTT] Connected to ${MQTT_URL}`);
     // Subscribe to all HydroFlow sensor topics
-    client.subscribe('hydroflow/#', { qos: 1 }, (err) => {
+    client.subscribe("hydroflow/#", { qos: 1 }, (err) => {
       if (err) {
-        console.error('[MQTT] Subscribe error:', err.message);
+        console.error("[MQTT] Subscribe error:", err.message);
       } else {
-        console.log('[MQTT] Subscribed to hydroflow/#');
+        console.log("[MQTT] Subscribed to hydroflow/#");
       }
     });
   });
 
-  client.on('message', async (topic, message) => {
+  client.on("message", async (topic, message) => {
     const raw = message.toString();
     console.log(`[MQTT] ${topic} → ${raw}`);
 
     // Parse sensor_id from topic: hydroflow/<sensor_id>/...
-    const parts    = topic.split('/');
-    const sensorId = parts[1] ?? 'unknown';
+    const parts = topic.split("/");
+    const sensorId = parts[1] ?? "unknown";
 
     let payload;
     try {
@@ -93,16 +98,50 @@ function initMQTT() {
       await db.query(
         `INSERT INTO sensor_readings (sensor_id, topic, payload)
          VALUES ($1, $2, $3)`,
-        [sensorId, topic, payload]
+        [sensorId, topic, payload],
       );
     } catch (err) {
-      console.error('[DB]   Insert failed:', err.message);
+      console.error("[DB]   Insert failed:", err.message);
+    }
+
+    // -----------------------------------------------------------------------
+    // Logic: Refill Alert (Tank A)
+    // -----------------------------------------------------------------------
+    if (sensorId === "tank_A" && topic.includes("level_low")) {
+      // Normalize payload: remove quotes/whitespace to handle "ON" or ON
+      const val = raw.replace(/["\s]/g, "");
+
+      if (val === "ON") {
+        if (!alertTimers[sensorId]) {
+          console.log(`[LOGIC] ${sensorId} is ON (Low). Starting 30s timer.`);
+          alertTimers[sensorId] = setTimeout(() => {
+            console.log(
+              `[LOGIC] ${sensorId} > 30s. Triggering Refill Command.`,
+            );
+            client.publish(
+              "hydroflow/valve/command",
+              JSON.stringify({
+                target: "valve_1",
+                cmd: "OPEN",
+                reason: "tank_A_low",
+              }),
+            );
+            delete alertTimers[sensorId]; // Allow re-trigger if condition persists
+          }, 30000);
+        }
+      } else if (val === "OFF") {
+        if (alertTimers[sensorId]) {
+          console.log(`[LOGIC] ${sensorId} is OFF (Normal). Cancelling timer.`);
+          clearTimeout(alertTimers[sensorId]);
+          delete alertTimers[sensorId];
+        }
+      }
     }
   });
 
-  client.on('reconnect', () => console.log('[MQTT] Reconnecting…'));
-  client.on('offline',   () => console.log('[MQTT] Offline'));
-  client.on('error',     (err) => console.error('[MQTT] Error:', err.message));
+  client.on("reconnect", () => console.log("[MQTT] Reconnecting…"));
+  client.on("offline", () => console.log("[MQTT] Offline"));
+  client.on("error", (err) => console.error("[MQTT] Error:", err.message));
 
   return client;
 }
@@ -113,21 +152,31 @@ function initMQTT() {
 const app = express();
 app.use(express.json());
 
+// Enable CORS for local frontend development
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept",
+  );
+  next();
+});
+
 // Liveness: process is alive
-app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
+app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
 
 // Readiness: DB reachable
-app.get('/readyz', async (_req, res) => {
+app.get("/readyz", async (_req, res) => {
   try {
-    await db.query('SELECT 1');
-    res.json({ status: 'ready', db: 'connected' });
+    await db.query("SELECT 1");
+    res.json({ status: "ready", db: "connected" });
   } catch (err) {
-    res.status(503).json({ status: 'not ready', db: err.message });
+    res.status(503).json({ status: "not ready", db: err.message });
   }
 });
 
 // Latest readings per sensor (simple diagnostic endpoint)
-app.get('/api/readings', async (_req, res) => {
+app.get("/api/readings", async (_req, res) => {
   try {
     const { rows } = await db.query(`
       SELECT DISTINCT ON (sensor_id)
@@ -146,35 +195,37 @@ app.get('/api/readings', async (_req, res) => {
 // Boot sequence
 // ---------------------------------------------------------------------------
 (async () => {
-  console.log('=== HydroFlow Backend starting ===');
+  console.log("=== HydroFlow Backend starting ===");
   console.log(`[MQTT] Target: ${MQTT_URL}`);
   try {
     const parsed = new URL(DATABASE_URL);
-    parsed.password = '***';
+    parsed.password = "***";
     console.log(`[DB]   Target: ${parsed.toString()}`);
   } catch {
-    console.log('[DB]   Target: [unparseable url]');
+    console.log("[DB]   Target: [unparseable url]");
   }
 
   try {
     await initDB();
   } catch (err) {
-    console.error('[FATAL] DB init failed:', err.message);
+    console.error("[FATAL] DB init failed:", err.message);
     process.exit(1);
   }
 
   initMQTT();
 
   app.listen(PORT, () => {
-    console.log(`[HTTP] Listening on :${PORT}  (health: /healthz  readiness: /readyz)`);
+    console.log(
+      `[HTTP] Listening on :${PORT}  (health: /healthz  readiness: /readyz)`,
+    );
   });
 })();
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown
 // ---------------------------------------------------------------------------
-process.on('SIGTERM', async () => {
-  console.log('[SHUTDOWN] SIGTERM received — draining connections…');
+process.on("SIGTERM", async () => {
+  console.log("[SHUTDOWN] SIGTERM received — draining connections…");
   await db.end();
   process.exit(0);
 });
