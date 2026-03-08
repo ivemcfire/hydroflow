@@ -1,0 +1,383 @@
+<div class="min-h-screen waterfall-bg pb-20">
+  <!-- Floating Water Particles -->
+  <div class="floating-particles">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <!-- Header -->
+  <header class="glass-card sticky top-0 z-40 px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <div
+        class="w-10 h-10 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-sky-200 pulse-glow">
+        <mat-icon>water_drop</mat-icon>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-slate-800 tracking-tight">HydroFlow</h1>
+        <p class="text-[10px] uppercase tracking-widest text-sky-500 font-bold">Intelligent Irrigation</p>
+      </div>
+    </div>
+    <!-- Desktop Navigation -->
+    <nav
+      class="hidden sm:flex items-center gap-2 mr-auto ml-12 bg-slate-50 border border-slate-100 p-1 rounded-2xl shadow-inner">
+      <button (click)="currentView.set('dashboard')"
+        [ngClass]="currentView() === 'dashboard' ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500 hover:text-sky-500 hover:bg-white/50'"
+        class="px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all">
+        <mat-icon class="text-sm">dashboard</mat-icon> Dashboard
+      </button>
+      <button (click)="currentView.set('devices')"
+        [ngClass]="currentView() === 'devices' ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500 hover:text-sky-500 hover:bg-white/50'"
+        class="px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all">
+        <mat-icon class="text-sm">precision_manufacturing</mat-icon> Hardware
+      </button>
+    </nav>
+
+    <div class="flex items-center gap-4">
+      <button (click)="toggleAlerts()"
+        class="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" id="alerts-bell">
+        <mat-icon>notifications</mat-icon>
+        @if (state.unreadAlertsCount() > 0) {
+        <span
+          class="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white animate-bounce">
+          {{ state.unreadAlertsCount() }}
+        </span>
+        }
+      </button>
+      <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="text-right hidden sm:block">
+          <p class="text-xs font-bold text-slate-700">Admin User</p>
+          <p class="text-[10px] text-slate-400">System Manager</p>
+        </div>
+        <div
+          class="w-10 h-10 rounded-full bg-gradient-to-br from-sky-300 to-indigo-400 border-2 border-white shadow-sm flex items-center justify-center text-white font-bold text-sm">
+          AU
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 pt-8 relative z-10">
+    @if (currentView() === 'dashboard') {
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <!-- Left Column: Overview & Nodes -->
+      <div class="lg:col-span-8 space-y-8">
+
+        <!-- AI Insights Section -->
+        <section class="glass-card rounded-3xl p-6 border-l-4 border-l-sky-400 water-fill" id="ai-insights">
+          <div class="flex items-center justify-between mb-4 relative z-10">
+            <div class="flex items-center gap-2 text-sky-600">
+              <mat-icon class="animate-pulse">auto_awesome</mat-icon>
+              <h2 class="font-bold uppercase tracking-wider text-xs">AI System Insights</h2>
+            </div>
+            <button (click)="refreshInsights()" [disabled]="isAnalyzing()"
+              class="text-xs font-bold text-slate-400 hover:text-sky-500 flex items-center gap-1 transition-colors">
+              <mat-icon class="text-sm" [class.animate-spin]="isAnalyzing()">refresh</mat-icon>
+              Refresh
+            </button>
+          </div>
+          <p class="text-slate-600 leading-relaxed relative z-10">
+            {{ aiInsights() }}
+          </p>
+        </section>
+
+        <!-- Nodes Grid -->
+        <section id="nodes-section">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-slate-800">Irrigation Nodes</h2>
+            <button (click)="addQuickNode()"
+              class="bg-gradient-to-r from-slate-800 to-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:from-slate-700 hover:to-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-300"
+              id="add-node-btn">
+              <mat-icon class="text-sm">add</mat-icon>
+              Add Node
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            @for (node of state.nodes(); track node.id) {
+            <app-node-card class="node-grid-item" [node]="node" (nodeSelect)="selectNode($event)"
+              (nodeUpdated)="onNodeCardUpdated($event)" />
+            }
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Weather & Global Stats -->
+      <div class="lg:col-span-4 space-y-8">
+        <app-weather-widget [weather]="state.weather()" />
+
+        <!-- System Health (Dynamic) -->
+        <section class="glass-card rounded-3xl p-6" id="system-health">
+          <h3 class="font-bold text-slate-800 mb-5 flex items-center gap-2">
+            <mat-icon class="text-sky-500">analytics</mat-icon>
+            System Health
+          </h3>
+          <div class="space-y-5">
+            <!-- Active Pumps -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-sm text-slate-500">Active Pumps</span>
+                <span class="text-sm font-bold text-slate-700">{{ state.activePumps().active }} / {{
+                  state.activePumps().total }}</span>
+              </div>
+              <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden liquid-progress">
+                <div class="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-1000"
+                  [style.width.%]="state.activePumps().total > 0 ? (state.activePumps().active / state.activePumps().total) * 100 : 0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Water Storage -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-sm text-slate-500">Water Storage</span>
+                <span class="text-sm font-bold text-slate-700">{{ state.averageWaterLevel() }}%</span>
+              </div>
+              <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden liquid-progress">
+                <div class="h-full rounded-full transition-all duration-1000" [ngClass]="{
+                  'bg-gradient-to-r from-emerald-400 to-emerald-500': state.averageWaterLevel() > 60,
+                  'bg-gradient-to-r from-amber-400 to-amber-500': state.averageWaterLevel() > 30 && state.averageWaterLevel() <= 60,
+                  'bg-gradient-to-r from-rose-400 to-rose-500': state.averageWaterLevel() <= 30
+                }" [style.width.%]="state.averageWaterLevel()"></div>
+              </div>
+            </div>
+
+            <!-- Active Rules -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-sm text-slate-500">Active Rules</span>
+                <span class="text-sm font-bold text-slate-700">{{ state.totalActiveRules() }}</span>
+              </div>
+              <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden liquid-progress">
+                <div
+                  class="h-full bg-gradient-to-r from-indigo-400 to-indigo-500 rounded-full transition-all duration-1000"
+                  [style.width.%]="state.totalActiveRules() * 20 > 100 ? 100 : state.totalActiveRules() * 20"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Recent Activity -->
+        <section class="glass-card rounded-3xl p-6">
+          <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <mat-icon class="text-amber-500">history</mat-icon>
+            Recent Activity
+          </h3>
+          <div class="space-y-4">
+            @for (alert of state.alerts().slice(0, 5); track alert.id) {
+            <div
+              class="flex gap-3 group/alert cursor-pointer hover:bg-slate-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
+              (click)="markAlertRead(alert.id)">
+              <div class="mt-1">
+                <div class="w-2 h-2 rounded-full" [ngClass]="{
+                  'bg-sky-400': alert.severity === 'info',
+                  'bg-amber-400': alert.severity === 'warning',
+                  'bg-rose-400 animate-pulse': alert.severity === 'error'
+                }"></div>
+              </div>
+              <div>
+                <p class="text-xs text-slate-700" [class.font-semibold]="!alert.read">{{ alert.message }}</p>
+                <p class="text-[10px] text-slate-400">{{ alert.timestamp | date:'shortTime' }}</p>
+              </div>
+            </div>
+            } @empty {
+            <p class="text-xs text-slate-400 text-center py-4">No recent activity</p>
+            }
+          </div>
+        </section>
+      </div>
+    </div>
+    } @else {
+    <app-devices-view />
+    }
+  </main>
+
+  <!-- Node Detail Overlay -->
+  @if (selectedNode(); as node) {
+  <div class="fixed inset-0 z-50 flex justify-end">
+    <div class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm fade-in" (click)="closeDetail()"
+      (keydown.escape)="closeDetail()" tabindex="0" role="button" aria-label="Close detail panel"></div>
+
+    <div class="detail-panel relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col overflow-hidden">
+      <!-- Detail Header -->
+      <div class="p-6 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-indigo-50">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-4">
+            <button (click)="closeDetail()" class="p-2 hover:bg-white rounded-xl transition-colors">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+            <div>
+              @if (editingNode()) {
+              <input type="text" [ngModel]="editName()" (ngModelChange)="editName.set($event)"
+                (keydown.enter)="saveNodeEdits()" class="edit-input text-xl font-bold mb-1" placeholder="Node name"
+                id="edit-node-name" />
+              <input type="text" [ngModel]="editLocation()" (ngModelChange)="editLocation.set($event)"
+                (keydown.enter)="saveNodeEdits()" class="edit-input text-sm" placeholder="Location"
+                id="edit-node-location" />
+              } @else {
+              <h2 class="text-2xl font-bold text-slate-800">{{ node.name }}</h2>
+              <p class="text-sm text-slate-500 flex items-center gap-1">
+                <mat-icon class="text-xs h-auto w-auto">location_on</mat-icon>
+                {{ node.location }}
+              </p>
+              }
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            @if (!editingNode() && !confirmingNodeDelete()) {
+            <button (click)="startEditNode()"
+              class="p-2 text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-xl transition-colors"
+              title="Edit node" id="edit-node-btn">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button (click)="askDeleteNode()"
+              class="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+              title="Delete node">
+              <mat-icon>delete</mat-icon>
+            </button>
+            }
+            @if (confirmingNodeDelete()) {
+            <div class="flex items-center gap-2 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100">
+              <span class="text-xs text-rose-600 font-medium whitespace-nowrap">Delete node?</span>
+              <button (click)="cancelNodeDelete()"
+                class="px-2 py-1 text-xs font-bold text-slate-500 hover:bg-white rounded-lg transition-colors">No</button>
+              <button (click)="confirmNodeDelete(node.id)"
+                class="px-2 py-1 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors">Yes</button>
+            </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-8 space-y-10">
+        <!-- Components Section -->
+        <section>
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <mat-icon class="text-sky-500">settings_input_component</mat-icon>
+              Hardware Components
+            </h3>
+            <div class="flex gap-2">
+              <button (click)="addComponent(node.id, 'pump')"
+                class="p-2 bg-sky-50 text-sky-600 rounded-lg hover:bg-sky-100 transition-all active:scale-95"
+                title="Add Pump" id="add-pump-btn">
+                <mat-icon>water_pump</mat-icon>
+              </button>
+              <button (click)="addComponent(node.id, 'valve')"
+                class="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all active:scale-95"
+                title="Add Valve" id="add-valve-btn">
+                <mat-icon>valve</mat-icon>
+              </button>
+              <button (click)="addComponent(node.id, 'soil_humidity')"
+                class="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all active:scale-95"
+                title="Add Soil Sensor" id="add-soil-btn">
+                <mat-icon>opacity</mat-icon>
+              </button>
+              <button (click)="addComponent(node.id, 'water_level')"
+                class="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-all active:scale-95"
+                title="Add Water Level Sensor" id="add-water-btn">
+                <mat-icon>waves</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            @for (comp of node.components; track comp.id) {
+            <app-component-item [component]="comp" (toggleStatus)="toggleComponent(node.id, $event)"
+              (delete)="deleteComponent(node.id, $event)" (nameChanged)="onComponentNameChanged(node.id, $event)" />
+            } @empty {
+            <div class="text-center py-12 border-2 border-dashed border-slate-100 rounded-2xl">
+              <mat-icon class="text-slate-200 text-4xl h-auto w-auto mb-2">inventory_2</mat-icon>
+              <p class="text-sm text-slate-400">No components added yet</p>
+              <p class="text-xs text-slate-300 mt-1">Use the buttons above to add pumps, valves, or sensors</p>
+            </div>
+            }
+          </div>
+        </section>
+
+        <!-- Automation Rules Section -->
+        <section>
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <mat-icon class="text-indigo-500">auto_mode</mat-icon>
+              Automation Rules
+            </h3>
+            <button (click)="openAddRule()"
+              class="text-sm font-bold text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-lg shadow-indigo-200 transition-all active:scale-95"
+              id="add-rule-btn">
+              <mat-icon class="text-sm">add</mat-icon>
+              Add Rule
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            @for (rule of node.rules; track rule.id) {
+            <app-rule-item [rule]="rule" (toggleActive)="toggleRule(node.id, $event)"
+              (delete)="deleteRule(node.id, $event)" (editRule)="editRule($event)" />
+            } @empty {
+            <div class="sm:col-span-2 text-center py-12 border-2 border-dashed border-slate-100 rounded-2xl">
+              <mat-icon class="text-slate-200 text-4xl h-auto w-auto mb-2">smart_toy</mat-icon>
+              <p class="text-sm text-slate-400">No automation rules defined</p>
+              <p class="text-xs text-slate-300 mt-1">Create smart rules to automate your watering</p>
+            </div>
+            }
+          </div>
+        </section>
+      </div>
+
+      <!-- Detail Footer -->
+      <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+        @if (editingNode()) {
+        <button (click)="cancelEditNode()"
+          class="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-white transition-colors">
+          Cancel
+        </button>
+        <button (click)="saveNodeEdits()"
+          class="px-6 py-2.5 bg-sky-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-200 hover:bg-sky-600 transition-all active:scale-95"
+          id="save-node-btn">
+          Save Changes
+        </button>
+        } @else {
+        <button (click)="closeDetail()"
+          class="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-white transition-colors">
+          Close
+        </button>
+        }
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Add Rule Dialog -->
+  @if (showAddRule() && selectedNode(); as node) {
+  <app-add-rule-dialog [components]="node.components" [weather]="state.weather()" [editRule]="editingRule()"
+    (close)="closeAddRule()" (ruleSaved)="onRuleSaved($event)" />
+  }
+
+  <!-- Alerts Panel -->
+  @if (showAlerts()) {
+  <app-alerts-panel [alerts]="state.alerts()" [unreadCount]="state.unreadAlertsCount()" (close)="showAlerts.set(false)"
+    (markRead)="markAlertRead($event)" (markAllRead)="markAllAlertsRead()" />
+  }
+
+  <!-- Bottom Navigation (Mobile) -->
+  <nav
+    class="sm:hidden fixed bottom-0 left-0 right-0 glass-card border-t border-slate-100 px-6 py-3 flex justify-around items-center z-40">
+    <button (click)="currentView.set('dashboard')"
+      [ngClass]="currentView() === 'dashboard' ? 'text-sky-500' : 'text-slate-400'"
+      class="flex flex-col items-center gap-1 transition-colors">
+      <mat-icon>dashboard</mat-icon>
+      <span class="text-[10px] font-bold">DASHBOARD</span>
+    </button>
+    <button (click)="currentView.set('devices')"
+      [ngClass]="currentView() === 'devices' ? 'text-sky-500' : 'text-slate-400'"
+      class="flex flex-col items-center gap-1 transition-colors">
+      <mat-icon>precision_manufacturing</mat-icon>
+      <span class="text-[10px] font-bold">HARDWARE</span>
+    </button>
+    <button class="text-slate-400 flex flex-col items-center gap-1 transition-colors" (click)="toggleAlerts()">
+      <mat-icon>notifications</mat-icon>
+      <span class="text-[10px] font-bold">ALERTS</span>
+    </button>
+  </nav>
+
+</div>

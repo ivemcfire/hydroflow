@@ -1,0 +1,288 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 font-sans antialiased;
+  background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.05) 0%, transparent 50%);
+  overflow-x: hidden;
+}
+
+/* ── Glass morphism card ── */
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-sm;
+}
+
+/* ── Waterfall background with animated gradient ── */
+.waterfall-bg {
+  position: relative;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, rgba(99, 102, 241, 0.04) 50%, transparent 100%);
+  background-size: 100% 200%;
+  animation: waterfall 8s ease-in-out infinite alternate;
+}
+
+@keyframes waterfall {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 0% 100%; }
+}
+
+/* ── Animated water drop particles ── */
+.waterfall-bg::before,
+.waterfall-bg::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.waterfall-bg::before {
+  top: -10%;
+  left: 15%;
+  width: 6px;
+  height: 6px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4), transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 rgba(56,189,248,0.2),
+    200px 80px 0 rgba(56,189,248,0.15),
+    400px 160px 0 rgba(99,102,241,0.12),
+    600px 40px 0 rgba(56,189,248,0.18),
+    100px 200px 0 rgba(99,102,241,0.1),
+    300px 300px 0 rgba(56,189,248,0.15),
+    500px 100px 0 rgba(99,102,241,0.12),
+    700px 250px 0 rgba(56,189,248,0.1),
+    150px 400px 0 rgba(56,189,248,0.12),
+    450px 350px 0 rgba(99,102,241,0.14);
+  animation: dropFall 12s linear infinite;
+}
+
+.waterfall-bg::after {
+  top: -20%;
+  right: 10%;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.3), transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 rgba(99,102,241,0.15),
+    -150px 120px 0 rgba(56,189,248,0.12),
+    -350px 200px 0 rgba(99,102,241,0.1),
+    -100px 300px 0 rgba(56,189,248,0.16),
+    -500px 80px 0 rgba(99,102,241,0.12),
+    -250px 350px 0 rgba(56,189,248,0.1),
+    -400px 150px 0 rgba(99,102,241,0.14);
+  animation: dropFall 18s linear infinite;
+  animation-delay: -6s;
+}
+
+@keyframes dropFall {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(120vh); opacity: 0; }
+}
+
+/* ── Pulse glow for active sensors ── */
+.pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(56, 189, 248, 0.2); }
+}
+
+/* ── Ripple click effect ── */
+.ripple-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-effect::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(56, 189, 248, 0.15), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.ripple-effect:active::after {
+  opacity: 1;
+  transition: opacity 0s;
+}
+
+/* ── Bubble rise animation ── */
+.bubble-rise {
+  animation: bubbleRise 6s ease-in infinite;
+}
+
+@keyframes bubbleRise {
+  0% { transform: translateY(100%) scale(0.5); opacity: 0; }
+  20% { opacity: 0.6; }
+  80% { opacity: 0.3; }
+  100% { transform: translateY(-100%) scale(1.2); opacity: 0; }
+}
+
+/* ── Flow line animation (for connecting elements) ── */
+.flow-line {
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.3), transparent);
+  background-size: 200% 100%;
+  animation: flowLine 3s linear infinite;
+}
+
+@keyframes flowLine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Water level fill animation ── */
+.water-fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.water-fill::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -5%;
+  width: 110%;
+  height: 100%;
+  background: linear-gradient(180deg, transparent 60%, rgba(56, 189, 248, 0.08) 100%);
+  animation: waterWave 4s ease-in-out infinite;
+}
+
+@keyframes waterWave {
+  0%, 100% { transform: translateY(2px); }
+  50% { transform: translateY(-2px); }
+}
+
+/* ── Slide panel transitions ── */
+.slide-in-right {
+  animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.slide-out-right {
+  animation: slideOutRight 0.3s ease-in forwards;
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Stagger fade in for lists ── */
+.stagger-item {
+  animation: staggerFadeIn 0.4s ease forwards;
+  opacity: 0;
+}
+
+@keyframes staggerFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Progress bar liquid animation ── */
+.liquid-progress {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+}
+
+.liquid-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: liquidShine 2.5s ease-in-out infinite;
+}
+
+@keyframes liquidShine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── Floating particles container ── */
+.floating-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.floating-particles span {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(56, 189, 248, 0.2);
+  border-radius: 50%;
+  animation: float 8s ease-in-out infinite;
+}
+
+.floating-particles span:nth-child(1) { left: 10%; animation-delay: 0s; animation-duration: 7s; }
+.floating-particles span:nth-child(2) { left: 30%; animation-delay: 1s; animation-duration: 9s; }
+.floating-particles span:nth-child(3) { left: 50%; animation-delay: 2s; animation-duration: 6s; }
+.floating-particles span:nth-child(4) { left: 70%; animation-delay: 0.5s; animation-duration: 8s; }
+.floating-particles span:nth-child(5) { left: 90%; animation-delay: 1.5s; animation-duration: 10s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(100vh) scale(0.5); opacity: 0; }
+  10% { opacity: 0.6; }
+  50% { opacity: 0.4; transform: translateY(50vh) scale(1); }
+  90% { opacity: 0.2; }
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ── Input styling ── */
+.edit-input {
+  @apply bg-white border border-sky-200 rounded-lg px-3 py-1.5 text-slate-800 outline-none transition-all;
+}
+.edit-input:focus {
+  @apply border-sky-400 ring-2 ring-sky-100;
+}
+
+/* ── Toggle switch ── */
+.toggle-switch {
+  @apply relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 cursor-pointer;
+}
+.toggle-switch-dot {
+  @apply inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 shadow-sm;
+}
