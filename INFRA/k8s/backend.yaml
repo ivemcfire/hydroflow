@@ -106,17 +106,26 @@ spec:
             - name: MQTT_URL
               value: "mqtt://192.168.100.207:1883"
 
-            # Pull password from the existing postgres-secret
-            - name: POSTGRES_PASSWORD
+            # PostgreSQL — individual vars to match db.js Pool config
+            - name: DB_HOST
+              value: "postgres.hydroflow.svc.cluster.local"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
-
-            # K8s resolves $(POSTGRES_PASSWORD) from the env var above
-            # Username and DB match values encoded in postgres-secret
-            - name: DATABASE_URL
-              value: "postgresql://hydroflow_user:$(POSTGRES_PASSWORD)@postgres.hydroflow.svc.cluster.local:5432/hydroflow"
 
             - name: PORT
               value: "3000"

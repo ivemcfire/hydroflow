@@ -45,7 +45,7 @@ RUN addgroup --system --gid 1001 hydroflow && \
 COPY --from=deps --chown=hydroflow:hydroflow /app/node_modules ./node_modules
 
 # Copy application source
-COPY --chown=hydroflow:hydroflow src/ ./src/
+COPY --chown=hydroflow:hydroflow server.js db.js automations.js ./
 COPY --chown=hydroflow:hydroflow package.json ./
 
 USER hydroflow
@@ -56,4 +56,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1))"
 
-CMD ["node", "src/index.js"]
+CMD ["node", "server.js"]

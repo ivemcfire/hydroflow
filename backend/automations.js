@@ -4,12 +4,17 @@ const commands = {
     togglePump: (id, state) => console.log(`[COMMAND] Pump ${id} -> ${state}`)
 };
 
-const state = {
-    tank_01: { filling: false, lastStart: null }
-};
+const state = {};
+
+function ensureState(tankId) {
+    if (!state[tankId]) {
+        state[tankId] = { filling: false, lastStart: null };
+    }
+}
 
 const services = {
     checkTankLevels: async (tankId, sensorLow, sensorHigh) => {
+        ensureState(tankId);
         // 1. If water is below 10% and we aren't already filling...
         if (sensorLow === true && !state[tankId].filling) {
             console.log(`[ALERT] ${tankId} is LOW. Triggering Refill Chain...`);
