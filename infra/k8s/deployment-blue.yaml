@@ -1,0 +1,23 @@
+# File: infra/k8s/deployment-blue.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydroflow-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hydroflow
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: hydroflow
+        version: blue
+    spec:
+      containers:
+      - name: hydroflow
+        image: hydroflow:latest
+        env:
+        - name: APP_COLOR
+          value: "blue"

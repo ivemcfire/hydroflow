@@ -1,0 +1,5 @@
+{
+  "name": "HydroFlow",
+  "description": "A modular, scalable IoT application for managing water pumps and monitoring flow rates.",
+  "requestFramePermissions": []
+}
