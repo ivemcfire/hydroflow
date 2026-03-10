@@ -17,7 +17,13 @@ server.register(alertsRoutes, { prefix: '/api/alerts' });
 
 // Healthcheck
 server.get('/health', async (request: any, reply: any) => {
-    return { status: 'ok' };
+    try {
+        await server.pg.query('SELECT 1');
+        return { status: 'ok', db: 'connected' };
+    } catch (err) {
+        server.log.error(err, 'Database connection failed');
+        return reply.status(500).send({ status: 'error', db: 'disconnected' });
+    }
 });
 
 const start = async () => {
