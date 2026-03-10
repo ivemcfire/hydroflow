@@ -4,6 +4,7 @@ import dbConnector from './plugins/db';
 import sensorsRoutes from './routes/sensors';
 import flowlogsRoutes from './routes/flowlogs';
 import alertsRoutes from './routes/alerts';
+import usersRoutes from './routes/users';
 
 const server = Fastify({ logger: true });
 
@@ -14,6 +15,7 @@ server.register(dbConnector);
 server.register(sensorsRoutes, { prefix: '/api/sensors' });
 server.register(flowlogsRoutes, { prefix: '/api/flowlogs' });
 server.register(alertsRoutes, { prefix: '/api/alerts' });
+server.register(usersRoutes, { prefix: '/api/users' });
 
 // Healthcheck
 server.get('/health', async (request: any, reply: any) => {
