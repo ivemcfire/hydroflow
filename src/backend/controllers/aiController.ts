@@ -46,8 +46,8 @@ Return ONLY a valid JSON array of objects with the following shape:
         const insights = JSON.parse(outputText);
 
         res.json(insights);
-    } catch (err) {
+    } catch (err: any) {
         console.error('AI Insights Proxy Error:', err);
-        res.status(500).json({ error: 'Failed to generate AI insights' });
+        res.status(500).json({ error: 'Failed to generate AI insights: ' + (err.message || err.toString()) });
     }
 };
