@@ -1,5 +1,0 @@
-The "Law": "Never change the monorepo structure without approval."
-The "Stack": "Frontend: React/Vite. Backend: Fastify. DB: PostgreSQL."
-The "Vibe": "Prioritize performance and clean TypeScript types over clever abstractions."
-Rule: "Commit each major feature separately (e.g., one commit for the DB plugin, one for the routes)."
-Rule: "Once the agent is done, open a Pull Request (PR) on GitHub."

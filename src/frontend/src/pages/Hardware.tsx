@@ -1,113 +1,8 @@
 // File: src/frontend/src/pages/Hardware.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Activity, X, Edit2, Trash2 } from 'lucide-react';
-
-const PumpIcon = ({ isOn }: { isOn: boolean }) => {
-  const color = isOn ? "#3b82f6" : "#94a3b8";
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="7" width="12" height="10" rx="2" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M14 12h6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M20 9v6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {isOn ? (
-        <g stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
-          <path d="M15 12h3" strokeDasharray="2 4">
-            <animate attributeName="stroke-dashoffset" values="6;0" dur="0.5s" repeatCount="indefinite" />
-          </path>
-          <circle cx="8" cy="12" r="2" fill="#3b82f6">
-            <animateTransform attributeName="transform" type="rotate" from="0 8 12" to="360 8 12" dur="0.5s" repeatCount="indefinite" />
-          </circle>
-        </g>
-      ) : (
-        <circle cx="8" cy="12" r="2" fill="#94a3b8" />
-      )}
-    </svg>
-  );
-};
-
-const ValveIcon = ({ isOn }: { isOn: boolean }) => {
-  const color = isOn ? "#6366f1" : "#94a3b8";
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4 10h16v4H4z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12 10V4" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 4h8" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {isOn ? (
-        <g stroke="#6366f1" strokeWidth="2" strokeLinecap="round">
-          <path d="M6 12h12" strokeDasharray="4 4">
-            <animate attributeName="stroke-dashoffset" values="8;0" dur="0.5s" repeatCount="indefinite" />
-          </path>
-        </g>
-      ) : (
-        <path d="M12 10v4" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      )}
-    </svg>
-  );
-};
-
-const FlowerIcon = ({ humidity }: { humidity: number }) => {
-  const isDry = humidity < 40;
-  const isFlooded = humidity > 70;
-  const isHealthy = !isDry && !isFlooded;
-
-  const color = isDry ? "#94a3b8" : isFlooded ? "#1e3a8a" : "#22c55e";
-
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 22V12" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {isDry ? (
-        <g stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 18c-2 0-4 1-4 3" />
-          <path d="M12 16c2 0 4 1 4 3" />
-        </g>
-      ) : (
-        <g stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill={isHealthy ? "#22c55e" : "none"}>
-          <path d="M12 18c-2-2-4-2-4 0 0 2 2 2 4 0z">
-            {isHealthy && <animateTransform attributeName="transform" type="rotate" values="0 12 18; -10 12 18; 0 12 18" dur="3s" repeatCount="indefinite" />}
-          </path>
-          <path d="M12 16c2-2 4-2 4 0 0 2-2 2-4 0z">
-            {isHealthy && <animateTransform attributeName="transform" type="rotate" values="0 12 16; 10 12 16; 0 12 16" dur="3s" repeatCount="indefinite" />}
-          </path>
-        </g>
-      )}
-      <circle cx="12" cy="8" r="3" fill={isFlooded ? "#1e3a8a" : isDry ? "none" : "#f59e0b"} stroke={color} strokeWidth="2"/>
-      <path d="M12 2v3M12 11v3M5 8h3M16 8h3M7.5 3.5l2 2M14.5 10.5l2 2M7.5 12.5l2-2M14.5 5.5l2-2" stroke={color} strokeWidth="1.5" strokeLinecap="round">
-        {isHealthy && <animateTransform attributeName="transform" type="rotate" values="0 12 8; 360 12 8" dur="10s" repeatCount="indefinite" />}
-      </path>
-      {isFlooded && (
-        <path d="M4 20h16" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round">
-           <animate attributeName="d" values="M4 20h16; M4 18h16; M4 20h16" dur="2s" repeatCount="indefinite" />
-        </path>
-      )}
-    </svg>
-  );
-};
-
-const TankIcon = ({ level }: { level: 'empty' | 'half' | 'full' }) => {
-  const color = level === 'empty' ? '#94a3b8' : level === 'half' ? '#3b82f6' : '#0d9488';
-  
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M5 4v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 4h18" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {level === 'half' && (
-        <path fill="#3b82f6" opacity="0.5">
-          <animate attributeName="d" 
-            values="M5 14 Q 12 12 19 14 L 19 22 L 5 22 Z; M5 14 Q 12 16 19 14 L 19 22 L 5 22 Z; M5 14 Q 12 12 19 14 L 19 22 L 5 22 Z" 
-            dur="2s" repeatCount="indefinite" />
-        </path>
-      )}
-      {level === 'full' && (
-        <path fill="#0d9488" opacity="0.5">
-          <animate attributeName="d" 
-            values="M5 6 Q 12 4 19 6 L 19 22 L 5 22 Z; M5 6 Q 12 8 19 6 L 19 22 L 5 22 Z; M5 6 Q 12 4 19 6 L 19 22 L 5 22 Z" 
-            dur="2s" repeatCount="indefinite" />
-        </path>
-      )}
-    </svg>
-  );
-};
+import { Plus, Activity, X, Edit2, Trash2, Zap } from 'lucide-react';
+import { PumpIcon, ValveIcon, FlowerIcon, TankIcon } from '../components/CustomIcons';
 
 const container = {
   hidden: { opacity: 0 },
@@ -130,6 +25,37 @@ const Hardware = () => {
     { id: 2, name: 'Zone 1 Valve', type: 'Valve', status: 'Online', bg: 'bg-indigo-50', isOn: false, zone: 'Zone 1' },
     { id: 3, name: 'Soil Sensor', type: 'Soil Sensor', status: 'Online', bg: 'bg-orange-50', value: 55, zone: 'Zone 1' },
     { id: 4, name: 'Primary Tank', type: 'Dual IR Sensor', status: 'Online', bg: 'bg-cyan-50', sensor10: true, sensor90: false, zone: 'Main System' },
+    { id: 5, name: 'Secondary Pump', type: 'Pump', status: 'Online', bg: 'bg-blue-50', isOn: false, zone: 'Main System' },
+    { id: 6, name: 'Zone 2 Valve', type: 'Valve', status: 'Online', bg: 'bg-indigo-50', isOn: false, zone: 'Zone 2' },
+  ]);
+
+  const [automations] = useState([
+    { 
+      id: 1, 
+      sourceId: 3, 
+      targets: [
+        { id: 1, action: 'Turn On' },
+        { id: 5, action: 'Turn On' },
+        { id: 2, action: 'Turn On' },
+        { id: 6, action: 'Turn On' }
+      ], 
+      condition: 'Value < 40%', 
+      status: 'Active' 
+    },
+    { 
+      id: 2, 
+      sourceId: 4, 
+      targets: [{ id: 1, action: 'Turn Off' }], 
+      condition: 'Level < 10%', 
+      status: 'Active' 
+    },
+    { 
+      id: 3, 
+      sourceId: 3, 
+      targets: [{ id: 2, action: 'Turn Off' }], 
+      condition: 'Value > 70%', 
+      status: 'Paused' 
+    },
   ]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -217,23 +143,26 @@ const Hardware = () => {
 
   return (
     <motion.div 
+      id="hardware-container"
       variants={container}
       initial="hidden"
       animate="show"
       className="space-y-6 relative z-10 pb-10"
     >
-      <motion.div variants={item} className="flex justify-between items-center mb-8">
+      <motion.div variants={item} className="flex justify-between items-center mb-8 relative z-20">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Hardware Components</h2>
           <p className="text-sm text-slate-500 mt-1">Manage pumps, valves, and sensors</p>
         </div>
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-[#00a3ff] hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-300 hover:-translate-y-0.5 duration-200"
-        >
-          <Plus size={18} />
-          Add Component
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-[#00a3ff] hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-sm shadow-blue-200 hover:shadow-md hover:shadow-blue-300 hover:-translate-y-0.5 duration-200"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">Add Component</span>
+          </button>
+        </div>
       </motion.div>
 
       {Object.entries(groupedComponents).map(([zone, zoneComponents]) => (
@@ -270,9 +199,16 @@ const Hardware = () => {
                   tankLevel = 'empty';
                 }
               }
+
+              const relatedAutomations = automations.filter(a => a.sourceId === comp.id || a.targets.some(t => t.id === comp.id));
               
               return (
-                <motion.div variants={item} key={comp.id} className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-slate-100 flex flex-col hover:shadow-md hover:border-blue-100 transition-all duration-300 group">
+                <motion.div 
+                  variants={item} 
+                  key={comp.id} 
+                  id={`comp-${comp.id}`}
+                  className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex flex-col hover:shadow-md hover:border-blue-100 transition-all duration-300 group relative z-10"
+                >
                   <div className="flex justify-between items-start mb-3">
                     <div className={`${comp.bg} p-2.5 rounded-lg group-hover:scale-110 transition-transform duration-300`}>
                       {comp.type === 'Pump' && <PumpIcon isOn={comp.isOn!} />}
@@ -288,6 +224,45 @@ const Hardware = () => {
                   
                   <h3 className="text-sm font-bold text-slate-800 mb-0.5 group-hover:text-[#00a3ff] transition-colors truncate" title={comp.name}>{comp.name}</h3>
                   <p className="text-xs text-slate-500 mb-3">{comp.type}</p>
+
+                  {relatedAutomations.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {relatedAutomations.map(a => {
+                        const isSource = a.sourceId === comp.id;
+                        
+                        if (isSource) {
+                          return a.targets.map(t => {
+                            const otherComp = components.find(c => c.id === t.id);
+                            if (!otherComp) return null;
+                            return (
+                              <span 
+                                key={`${a.id}-${t.id}`} 
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${a.status === 'Active' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                                title={`Controls ${otherComp.name} (Rule: ${a.condition} -> ${t.action})`}
+                              >
+                                <Zap size={10} className={a.status === 'Active' ? 'text-purple-500' : 'text-slate-400'} />
+                                → {otherComp.name} ({t.action})
+                              </span>
+                            );
+                          });
+                        } else {
+                          const otherComp = components.find(c => c.id === a.sourceId);
+                          const thisTarget = a.targets.find(t => t.id === comp.id);
+                          if (!otherComp || !thisTarget) return null;
+                          return (
+                            <span 
+                              key={a.id} 
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${a.status === 'Active' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                              title={`Controlled by ${otherComp.name} (Rule: ${a.condition} -> ${thisTarget.action})`}
+                            >
+                              <Zap size={10} className={a.status === 'Active' ? 'text-amber-500' : 'text-slate-400'} />
+                              ← {otherComp.name} ({thisTarget.action})
+                            </span>
+                          );
+                        }
+                      })}
+                    </div>
+                  )}
                   
                   <div className="mt-auto pt-3 border-t border-slate-50 flex items-center justify-between min-h-[32px]">
                     {isActuator ? (

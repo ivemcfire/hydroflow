@@ -1,23 +1,30 @@
 // File: src/frontend/src/components/Header.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Droplet, LogOut, Users, Info, Phone, X, Send } from 'lucide-react';
-import { NavLink, Link } from 'react-router-dom';
+import { Bell, Droplet, LogOut, Users, Info, Phone, X, Send, Menu } from 'lucide-react';
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 const Header = () => {
   const { state, dispatch } = useAppContext();
   const { currentUser } = state;
+  const navigate = useNavigate();
+  const location = useLocation();
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setIsMobileMenuOpen(false);
       }
     };
 
@@ -43,6 +50,26 @@ const Header = () => {
     </>
   );
 
+  const navLinks = [
+    { to: '/', label: 'Dashboard' },
+    { to: '/hardware', label: 'Hardware', adminOnly: true },
+    { to: '/automation', label: 'Automation' },
+    { to: '/zones', label: 'Zones' },
+    { to: '/schedule', label: 'Schedule' },
+  ];
+
+  const handleWidgetClick = (id: string) => {
+    setIsMobileMenuOpen(false);
+    if (location.pathname !== '/') {
+      navigate('/');
+      setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({behavior: 'smooth'});
+      }, 100);
+    } else {
+      document.getElementById(id)?.scrollIntoView({behavior: 'smooth'});
+    }
+  };
+
   return (
     <>
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/50 px-6 py-4 flex flex-wrap gap-4 justify-between items-center sticky top-0 z-20">
@@ -57,31 +84,87 @@ const Header = () => {
             </div>
           </div>
           
-          <nav className="flex items-center gap-1 ml-4">
-            <NavLink 
-              to="/" 
-              className={({isActive}) => `px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-[#f0f7fa] text-[#00a3ff]' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-            >
-              Dashboard
-            </NavLink>
-            {currentUser.role === 'admin' && (
-              <NavLink 
-                to="/hardware" 
-                className={({isActive}) => `px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-[#f0f7fa] text-[#00a3ff]' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-              >
-                Hardware
-              </NavLink>
-            )}
+          {/* Desktop Navigation */}
+          <nav className="hidden lg:flex items-center gap-1 ml-4">
+            {navLinks.map((link) => {
+              if (link.adminOnly && currentUser.role !== 'admin') return null;
+              return (
+                <NavLink 
+                  key={link.to}
+                  to={link.to} 
+                  className={({isActive}) => `px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-[#f0f7fa] text-[#00a3ff]' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                >
+                  {link.label}
+                </NavLink>
+              );
+            })}
           </nav>
         </div>
         
-        <div className="flex items-center gap-6">
-          <button className="text-slate-400 hover:text-slate-600 transition-colors relative">
+        <div className="flex items-center gap-4 sm:gap-6">
+          {/* Mobile Menu Toggle */}
+          <div className="lg:hidden relative" ref={mobileMenuRef}>
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-2"
+            >
+              <Menu size={24} />
+            </button>
+            
+            <AnimatePresence>
+              {isMobileMenuOpen && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50 overflow-hidden origin-top-right"
+                >
+                  {navLinks.map((link) => {
+                    if (link.adminOnly && currentUser.role !== 'admin') return null;
+                    return (
+                      <NavLink 
+                        key={link.to}
+                        to={link.to} 
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={({isActive}) => `block px-4 py-2 text-sm font-semibold transition-colors ${isActive ? 'bg-[#f0f7fa] text-[#00a3ff]' : 'text-slate-600 hover:bg-slate-50 hover:text-[#00a3ff]'}`}
+                      >
+                        {link.label}
+                      </NavLink>
+                    );
+                  })}
+                  
+                  <div className="h-px bg-slate-100 my-2"></div>
+                  <p className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sidebar Widgets</p>
+                  <button 
+                    onClick={() => handleWidgetClick('analytics')} 
+                    className="w-full text-left px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-[#00a3ff]"
+                  >
+                    Analytics
+                  </button>
+                  <button 
+                    onClick={() => handleWidgetClick('weather')} 
+                    className="w-full text-left px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-[#00a3ff]"
+                  >
+                    Weather Forecast
+                  </button>
+                  <button 
+                    onClick={() => handleWidgetClick('system-health')} 
+                    className="w-full text-left px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-[#00a3ff]"
+                  >
+                    System Health
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <button className="text-slate-400 hover:text-slate-600 transition-colors relative hidden sm:block">
             <Bell size={20} />
             <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
           </button>
           
-          <div className="h-8 w-px bg-slate-200"></div>
+          <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
           
           <div className="relative" ref={dropdownRef}>
             <button 
