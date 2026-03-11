@@ -10,7 +10,7 @@ import contextRoutes from './routes/context';
 const server = Fastify({ logger: true });
 
 // Register Database
-server.register(dbConnector);
+// server.register(dbConnector);
 
 // Register Routes
 server.register(sensorsRoutes, { prefix: '/api/sensors' });

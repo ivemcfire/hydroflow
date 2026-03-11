@@ -3,12 +3,11 @@ import { GoogleGenAI } from '@google/genai';
 
 const FASTIFY_URL = process.env.FASTIFY_URL || 'http://localhost:3001';
 
-// Initialize the Gemini SDK
-// It automatically picks up GEMINI_API_KEY from process.env
-const ai = new GoogleGenAI({});
-
 export const getInsights = async (req: Request, res: Response) => {
     try {
+        // Initialize the Gemini SDK explicitly with the API key inside the handler
+        // to ensure dotenv has already been parsed and loaded.
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         // 1. Fetch system context from the Fastify backend
         const contextResponse = await fetch(`${FASTIFY_URL}/api/context`);
         if (!contextResponse.ok) {
