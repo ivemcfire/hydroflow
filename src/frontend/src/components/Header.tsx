@@ -1,11 +1,13 @@
 // File: src/frontend/src/components/Header.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Droplet, LogOut, Users, Info, Phone, X, Send, Menu } from 'lucide-react';
+import { Bell, LogOut, Users, Info, Phone, X, Send, Menu, History } from 'lucide-react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
+import RecentActivity from './RecentActivity';
+import AnimatedDroplet from './AnimatedDroplet';
 
-const Header = () => {
+const Header = ({ bannerClass = '' }: { bannerClass?: string }) => {
   const { state, dispatch } = useAppContext();
   const { currentUser } = state;
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -72,11 +75,11 @@ const Header = () => {
 
   return (
     <>
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/50 px-6 py-4 flex flex-wrap gap-4 justify-between items-center sticky top-0 z-20">
+      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/50 px-6 py-4 flex flex-wrap gap-4 justify-between items-center fixed top-0 left-0 w-full z-50">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3">
             <div className="bg-[#00a3ff] p-2 rounded-xl text-white shadow-sm shadow-blue-200">
-              <Droplet size={24} className="fill-white" />
+              <AnimatedDroplet size={24} />
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900 leading-tight">HydroFlow</h1>
@@ -159,6 +162,13 @@ const Header = () => {
             </AnimatePresence>
           </div>
 
+          <button 
+            onClick={() => setIsActivityOpen(true)}
+            className="text-slate-400 hover:text-slate-600 transition-colors relative hidden sm:block"
+          >
+            <History size={20} />
+          </button>
+          
           <button className="text-slate-400 hover:text-slate-600 transition-colors relative hidden sm:block">
             <Bell size={20} />
             <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
@@ -230,6 +240,34 @@ const Header = () => {
           </div>
         </div>
       </header>
+      <div className={`w-full py-1 ${bannerClass} z-40 fixed top-[80px] left-0 shadow-sm`}>
+      </div>
+
+      {/* Recent Activity Modal */}
+      <AnimatePresence>
+        {isActivityOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <History size={20} className="text-[#00a3ff]" /> Recent Activity
+                </h3>
+                <button onClick={() => setIsActivityOpen(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6">
+                <RecentActivity />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* About Modal */}
       <AnimatePresence>

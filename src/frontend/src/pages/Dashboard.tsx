@@ -3,9 +3,6 @@ import React from 'react';
 import { motion } from 'motion/react';
 import AiInsights from '../components/AiInsights';
 import IrrigationNodes from '../components/IrrigationNodes';
-import WeatherCard from '../components/WeatherCard';
-import SystemHealth from '../components/SystemHealth';
-import RecentActivity from '../components/RecentActivity';
 
 const container = {
   hidden: { opacity: 0 },
@@ -28,17 +25,15 @@ const Dashboard = () => {
       variants={container}
       initial="hidden"
       animate="show"
-      className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10"
+      className="flex flex-col gap-6 relative z-10"
     >
-      <div className="lg:col-span-2 space-y-6">
-        <motion.div variants={item}><AiInsights /></motion.div>
-        <motion.div variants={item}><IrrigationNodes /></motion.div>
-      </div>
-      <div className="space-y-6">
-        <motion.div variants={item}><WeatherCard /></motion.div>
-        <motion.div variants={item}><SystemHealth /></motion.div>
-        <motion.div variants={item}><RecentActivity /></motion.div>
-      </div>
+      <motion.div variants={item}>
+        <IrrigationNodes />
+      </motion.div>
+      
+      <motion.div variants={item} className="w-full">
+        <AiInsights />
+      </motion.div>
     </motion.div>
   );
 };

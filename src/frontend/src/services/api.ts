@@ -1,5 +1,5 @@
 // File: src/frontend/src/services/api.ts
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export const fetchSystemStatus = async () => {
   const response = await fetch(`${API_BASE}/status`);

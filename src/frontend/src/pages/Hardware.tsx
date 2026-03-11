@@ -210,79 +210,84 @@ const Hardware = () => {
                   className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex flex-col hover:shadow-md hover:border-blue-100 transition-all duration-300 group relative z-10"
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div className={`${comp.bg} p-2.5 rounded-lg group-hover:scale-110 transition-transform duration-300`}>
-                      {comp.type === 'Pump' && <PumpIcon isOn={comp.isOn!} />}
-                      {comp.type === 'Valve' && <ValveIcon isOn={comp.isOn!} />}
-                      {comp.type === 'Soil Sensor' && <FlowerIcon humidity={comp.value as number} />}
-                      {comp.type === 'Dual IR Sensor' && <TankIcon level={tankLevel} />}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-medium">
-                      <div className={`w-1.5 h-1.5 rounded-full ${comp.status === 'Online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></div>
-                      <span className={comp.status === 'Online' ? 'text-emerald-600' : 'text-red-600'}>{comp.status}</span>
+                    <div className="flex gap-3 w-full">
+                      <div className={`${comp.bg} p-2 rounded-lg group-hover:scale-110 transition-transform duration-300 shrink-0 self-start`}>
+                        {comp.type === 'Pump' && <div className="w-6 h-6"><PumpIcon isOn={comp.isOn!} /></div>}
+                        {comp.type === 'Valve' && <div className="w-6 h-6"><ValveIcon isOn={comp.isOn!} /></div>}
+                        {comp.type === 'Soil Sensor' && <div className="w-6 h-6"><FlowerIcon humidity={comp.value as number} /></div>}
+                        {comp.type === 'Dual IR Sensor' && <div className="w-6 h-6"><TankIcon level={tankLevel} /></div>}
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-1.5 ml-auto">
+                        <div className="flex items-center gap-1.5 text-[10px] font-medium">
+                          <div className={`w-1.5 h-1.5 rounded-full ${comp.status === 'Online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></div>
+                          <span className={comp.status === 'Online' ? 'text-emerald-600' : 'text-red-600'}>{comp.status}</span>
+                        </div>
+                        
+                        {isActuator ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-[10px] font-bold text-slate-500">{comp.isOn ? 'ON' : 'OFF'}</span>
+                            <button 
+                              onClick={() => toggleComponent(comp.id)}
+                              className={`w-8 h-4 rounded-full relative transition-colors duration-300 ${comp.isOn ? 'bg-emerald-400' : 'bg-slate-300'}`}
+                            >
+                              <div className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform duration-300 ${comp.isOn ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div 
+                            className={`flex items-center gap-1 cursor-pointer hover:text-[#00a3ff] transition-colors`}
+                            onClick={() => toggleComponent(comp.id)}
+                            title="Click to simulate value change"
+                          >
+                            <Activity size={12} className={comp.type === 'Dual IR Sensor' ? 'text-cyan-500' : comp.type === 'Soil Sensor' ? 'text-orange-500' : 'text-slate-400'} />
+                            <span className="text-xs font-bold text-slate-700 truncate">{displayValue}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
-                  <h3 className="text-sm font-bold text-slate-800 mb-0.5 group-hover:text-[#00a3ff] transition-colors truncate" title={comp.name}>{comp.name}</h3>
-                  <p className="text-xs text-slate-500 mb-3">{comp.type}</p>
+                  <div className="mt-auto">
+                    <h3 className="text-sm font-bold text-slate-800 mb-0.5 group-hover:text-[#00a3ff] transition-colors truncate" title={comp.name}>{comp.name}</h3>
+                    <p className="text-xs text-slate-500 mb-3">{comp.type}</p>
 
-                  {relatedAutomations.length > 0 && (
-                    <div className="mb-3 flex flex-wrap gap-1.5">
-                      {relatedAutomations.map(a => {
-                        const isSource = a.sourceId === comp.id;
-                        
-                        if (isSource) {
-                          return a.targets.map(t => {
-                            const otherComp = components.find(c => c.id === t.id);
-                            if (!otherComp) return null;
+                    {relatedAutomations.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {relatedAutomations.map(a => {
+                          const isSource = a.sourceId === comp.id;
+                          
+                          if (isSource) {
+                            return a.targets.map(t => {
+                              const otherComp = components.find(c => c.id === t.id);
+                              if (!otherComp) return null;
+                              return (
+                                <span 
+                                  key={`${a.id}-${t.id}`} 
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${a.status === 'Active' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                                  title={`Controls ${otherComp.name} (Rule: ${a.condition} -> ${t.action})`}
+                                >
+                                  <Zap size={10} className={a.status === 'Active' ? 'text-purple-500' : 'text-slate-400'} />
+                                  → {otherComp.name} ({t.action})
+                                </span>
+                              );
+                            });
+                          } else {
+                            const otherComp = components.find(c => c.id === a.sourceId);
+                            const thisTarget = a.targets.find(t => t.id === comp.id);
+                            if (!otherComp || !thisTarget) return null;
                             return (
                               <span 
-                                key={`${a.id}-${t.id}`} 
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${a.status === 'Active' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
-                                title={`Controls ${otherComp.name} (Rule: ${a.condition} -> ${t.action})`}
+                                key={a.id} 
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${a.status === 'Active' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                                title={`Controlled by ${otherComp.name} (Rule: ${a.condition} -> ${thisTarget.action})`}
                               >
-                                <Zap size={10} className={a.status === 'Active' ? 'text-purple-500' : 'text-slate-400'} />
-                                → {otherComp.name} ({t.action})
+                                <Zap size={10} className={a.status === 'Active' ? 'text-amber-500' : 'text-slate-400'} />
+                                ← {otherComp.name} ({thisTarget.action})
                               </span>
                             );
-                          });
-                        } else {
-                          const otherComp = components.find(c => c.id === a.sourceId);
-                          const thisTarget = a.targets.find(t => t.id === comp.id);
-                          if (!otherComp || !thisTarget) return null;
-                          return (
-                            <span 
-                              key={a.id} 
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${a.status === 'Active' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
-                              title={`Controlled by ${otherComp.name} (Rule: ${a.condition} -> ${thisTarget.action})`}
-                            >
-                              <Zap size={10} className={a.status === 'Active' ? 'text-amber-500' : 'text-slate-400'} />
-                              ← {otherComp.name} ({thisTarget.action})
-                            </span>
-                          );
-                        }
-                      })}
-                    </div>
-                  )}
-                  
-                  <div className="mt-auto pt-3 border-t border-slate-50 flex items-center justify-between min-h-[32px]">
-                    {isActuator ? (
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-xs font-semibold text-slate-600">{comp.isOn ? 'ON' : 'OFF'}</span>
-                        <button 
-                          onClick={() => toggleComponent(comp.id)}
-                          className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${comp.isOn ? 'bg-emerald-400' : 'bg-slate-300'}`}
-                        >
-                          <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform duration-300 ${comp.isOn ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div 
-                        className={`flex items-center gap-2 w-full cursor-pointer hover:text-[#00a3ff] transition-colors`}
-                        onClick={() => toggleComponent(comp.id)}
-                        title="Click to simulate value change"
-                      >
-                        <Activity size={14} className={comp.type === 'Dual IR Sensor' ? 'text-cyan-500' : comp.type === 'Soil Sensor' ? 'text-orange-500' : 'text-slate-400'} />
-                        <span className="text-xs font-bold text-slate-700 truncate">{displayValue}</span>
+                          }
+                        })}
                       </div>
                     )}
                   </div>

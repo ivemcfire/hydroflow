@@ -4,19 +4,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Zap, ArrowRight, Plus, Trash2, Activity, Settings2, X, Edit2, Check } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import HardwareIcon from '../components/HardwareIcon';
+import { components } from '../constants';
 
 const Automation = () => {
   const { state, dispatch } = useAppContext();
   const { automations } = state;
-
-  const [components] = useState([
-    { id: 1, name: 'Main Pump', type: 'Pump' },
-    { id: 2, name: 'Zone 1 Valve', type: 'Valve' },
-    { id: 3, name: 'Soil Sensor', type: 'Soil Sensor' },
-    { id: 4, name: 'Primary Tank', type: 'Dual IR Sensor' },
-    { id: 5, name: 'Secondary Pump', type: 'Pump' },
-    { id: 6, name: 'Zone 2 Valve', type: 'Valve' },
-  ]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null);

@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { Calendar, Clock, Plus, Trash2, Edit2 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import HardwareIcon from '../components/HardwareIcon';
+import { components } from '../constants';
 
 interface ScheduleItem {
   id: string;
@@ -164,7 +165,14 @@ const Schedule = () => {
                     {hardwareTargets.map(t => <option key={t} value={t}>{t}</option>)}
                   </optgroup>
                   <optgroup label="Automation Rules">
-                    {automations.map(a => <option key={`auto-${a.id}`} value={`Rule ${a.id}: ${a.condition}`}>Rule {a.id}: {a.condition}</option>)}
+                    {automations.map(a => {
+                      const source = components.find(c => c.id === a.sourceId);
+                      return (
+                        <option key={`auto-${a.id}`} value={`Rule ${a.id}: ${a.condition}`}>
+                          A_{source ? source.name : 'Unknown'}
+                        </option>
+                      );
+                    })}
                   </optgroup>
                 </select>
               </div>

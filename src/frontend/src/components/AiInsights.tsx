@@ -16,9 +16,9 @@ const AiInsights = () => {
         </button>
       </div>
       
-      <div className="space-y-4">
-        <div className="flex items-start gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50">
-          <div className="bg-blue-100 p-2 rounded-lg text-blue-600 mt-0.5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="flex items-start gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50 h-full">
+          <div className="bg-blue-100 p-2 rounded-lg text-blue-600 mt-0.5 shrink-0">
             <CloudRain size={18} />
           </div>
           <div>
@@ -27,8 +27,8 @@ const AiInsights = () => {
           </div>
         </div>
 
-        <div className="flex items-start gap-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100/50">
-          <div className="bg-emerald-100 p-2 rounded-lg text-emerald-600 mt-0.5">
+        <div className="flex items-start gap-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100/50 h-full">
+          <div className="bg-emerald-100 p-2 rounded-lg text-emerald-600 mt-0.5 shrink-0">
             <Droplets size={18} />
           </div>
           <div>
@@ -37,8 +37,8 @@ const AiInsights = () => {
           </div>
         </div>
 
-        <div className="flex items-start gap-4 p-4 bg-orange-50/50 rounded-xl border border-orange-100/50">
-          <div className="bg-orange-100 p-2 rounded-lg text-orange-600 mt-0.5">
+        <div className="flex items-start gap-4 p-4 bg-orange-50/50 rounded-xl border border-orange-100/50 h-full">
+          <div className="bg-orange-100 p-2 rounded-lg text-orange-600 mt-0.5 shrink-0">
             <AlertTriangle size={18} />
           </div>
           <div>

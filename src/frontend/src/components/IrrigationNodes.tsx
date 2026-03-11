@@ -4,25 +4,27 @@ import { Plus, MapPin, Network, Edit2, X, Trash2, Cpu } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 
 const NodeCard = ({ node, onEdit, isAdmin }: any) => (
-  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col h-full hover:shadow-md hover:border-blue-100 transition-all duration-300 group relative">
-    {isAdmin && (
-      <button 
-        onClick={() => onEdit(node)}
-        className="absolute top-4 right-4 bg-white p-2 rounded-xl text-slate-400 hover:text-[#00a3ff] shadow-sm border border-slate-100 group-hover:border-blue-100 transition-all z-10"
-      >
-        <Edit2 size={16} />
-      </button>
-    )}
-    <div className="flex justify-between items-start mb-6 pr-10">
-      <div>
-        <h3 className="text-xl font-bold text-slate-800 mb-1 group-hover:text-[#00a3ff] transition-colors">{node.name}</h3>
+  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col h-full hover:shadow-md hover:border-blue-100 transition-all duration-300 group">
+    <div className="flex justify-between items-start mb-6 gap-4">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-xl font-bold text-slate-800 mb-1 group-hover:text-[#00a3ff] transition-colors truncate">{node.name}</h3>
         <div className="flex items-center gap-1.5 text-slate-500 text-sm">
-          <MapPin size={16} />
-          <span>{node.location}</span>
+          <MapPin size={16} className="shrink-0" />
+          <span className="truncate">{node.location}</span>
         </div>
       </div>
-      <div className="bg-[#f0f7fa] p-2.5 rounded-xl text-[#00a3ff] group-hover:scale-110 group-hover:bg-[#00a3ff] group-hover:text-white transition-all duration-300">
-        <Network size={24} />
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="bg-[#f0f7fa] p-2.5 rounded-xl text-[#00a3ff] group-hover:scale-110 group-hover:bg-[#00a3ff] group-hover:text-white transition-all duration-300">
+          <Network size={20} />
+        </div>
+        {isAdmin && (
+          <button 
+            onClick={() => onEdit(node)}
+            className="bg-white p-2.5 rounded-xl text-slate-400 hover:text-[#00a3ff] shadow-sm border border-slate-100 group-hover:border-blue-100 transition-all"
+          >
+            <Edit2 size={20} />
+          </button>
+        )}
       </div>
     </div>
     
@@ -39,10 +41,10 @@ const NodeCard = ({ node, onEdit, isAdmin }: any) => (
     
     <div className="flex justify-between items-center text-xs text-slate-400 mt-auto pt-4 border-t border-slate-50">
       <div className="flex items-center gap-1.5">
-        <div className={`w-2 h-2 rounded-full ${node.status === 'Online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></div>
-        <span>{node.status}</span>
+        <div className={`w-2 h-2 rounded-full shrink-0 ${node.status === 'Online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`}></div>
+        <span className="truncate">{node.status}</span>
       </div>
-      <span>Updated {node.time}</span>
+      <span className="shrink-0">Updated {node.time}</span>
     </div>
   </div>
 );
@@ -140,7 +142,7 @@ const IrrigationNodes = () => {
         )}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6">
         {nodes.map((node) => (
           <NodeCard key={node.id} node={node} onEdit={handleEdit} isAdmin={isAdmin} />
         ))}

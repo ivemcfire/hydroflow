@@ -32,14 +32,11 @@ const AppContent = () => {
     : 'bg-blue-600 text-white border-b border-blue-700';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0f7fa] to-[#e0f2fe] font-sans text-slate-800 relative overflow-x-hidden flex flex-col">
-      <div className={`w-full text-center py-1.5 text-[10px] font-bold tracking-[0.2em] uppercase ${bannerClass} z-50 relative shadow-sm`}>
-        System Environment: {appColor} (Live)
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#f0f7fa] to-[#e0f2fe] font-sans text-slate-800 relative overflow-x-hidden flex flex-col pt-24">
+      <Header bannerClass={bannerClass} />
       <WaterDroplets />
-      <Header />
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 relative z-10 w-full flex-grow flex flex-col lg:flex-row gap-8">
-        <div className={`flex-grow w-full min-w-0 ${isDashboard ? 'lg:w-2/3 xl:w-3/4' : ''}`}>
+      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 py-8 relative z-10 w-full flex-grow flex flex-col lg:flex-row gap-8">
+        <div className="flex-grow w-full min-w-0">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/hardware" element={<Hardware />} />
@@ -53,7 +50,7 @@ const AppContent = () => {
           </Routes>
         </div>
         {isDashboard && (
-          <div className="w-full lg:w-1/3 xl:w-1/4 flex flex-col gap-6 shrink-0">
+          <div className="w-full lg:w-[320px] xl:w-[380px] flex flex-col gap-6 shrink-0">
             <Sidebar />
           </div>
         )}
