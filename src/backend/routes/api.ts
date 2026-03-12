@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { getPumps, togglePump } from '../controllers/pumpController';
 import { login, register } from '../controllers/authController';
 import { getInsights } from '../controllers/aiController';
+import { getWeather } from '../controllers/weatherController';
 
 const router = Router();
 
@@ -13,5 +14,6 @@ router.post('/login', login);
 router.post('/register', register);
 
 router.get('/ai/insights', getInsights);
+router.get('/weather', getWeather);
 
 export default router;
