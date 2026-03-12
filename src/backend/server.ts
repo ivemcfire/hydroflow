@@ -22,6 +22,10 @@ app.get('/api/status', (req, res) => {
   res.json({ status: 'ok', color: APP_COLOR });
 });
 
+// Health/readiness probes
+app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+app.get('/readyz', (req, res) => res.json({ status: 'ok' }));
+
 async function startServer() {
   if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../../dist/frontend');

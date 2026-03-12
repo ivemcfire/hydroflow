@@ -11,8 +11,11 @@ export default async function usersRoutes(fastify: FastifyInstance, options: any
         }
 
         try {
-            // Mock DB insert
-            return reply.status(201).send({ id: 1, username, role: role || 'view_only' });
+            const result = await fastify.pg.query(
+                'INSERT INTO Users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role',
+                [username, password, role || 'view_only']
+            );
+            return reply.status(201).send(result.rows[0]);
         } catch (err: any) {
             fastify.log.error(err, 'Failed to register user');
             return reply.status(500).send({ error: 'Internal Server Error' });
@@ -28,14 +31,16 @@ export default async function usersRoutes(fastify: FastifyInstance, options: any
         }
 
         try {
-            // Mock user login
-            if (username === 'admin' && password === 'admin') {
-                return reply.send({ id: 1, username: 'admin', role: 'admin' });
-            } else if (password !== '') {
-                return reply.send({ id: 2, username, role: 'view_only' });
+            const result = await fastify.pg.query(
+                'SELECT id, username, role FROM Users WHERE username = $1 AND password = $2',
+                [username, password]
+            );
+
+            if (result.rows.length === 0) {
+                return reply.status(401).send({ error: 'Invalid credentials' });
             }
 
-            return reply.status(401).send({ error: 'Invalid credentials' });
+            return reply.send(result.rows[0]);
         } catch (err) {
             fastify.log.error(err, 'Failed to login user');
             return reply.status(500).send({ error: 'Internal Server Error' });

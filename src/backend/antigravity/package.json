@@ -9,9 +9,10 @@
         "build": "tsc"
     },
     "dependencies": {
-        "@fastify/postgres": "latest",
-        "dotenv": "^16.4.5",
-        "fastify": "^4.26.1"
+        "@fastify/postgres": "^5.0.0",
+        "dotenv": "^17.0.0",
+        "fastify": "^4.26.1",
+        "fastify-plugin": "^4.5.1"
     },
     "devDependencies": {
         "@types/node": "^20.11.16",
