@@ -58,6 +58,10 @@ The frontend uses React Context (`AppContext.tsx`) to manage global state. When 
 *   **Blue-Green Deployment:**
     *   The frontend is already configured to read the `APP_COLOR` environment variable (via the backend `/api/system/status` endpoint) to display a Blue or Green banner indicating the active environment.
     *   Set up the routing/ingress (e.g., Nginx, Traefik, or AWS ALB) to handle traffic switching between the Blue and Green containers.
+*   **Local Deployment (k3s):**
+    *   **Goal:** Deploy the full stack on a local **k3s** server for edge computing scenarios.
+    *   **Orchestration:** Use Helm charts or Kubernetes manifests to define the Frontend, Backend, PostgreSQL, and Mosquitto MQTT Broker.
+    *   **OPUS AI Integration:** OPUS AI is responsible for automating the local cluster setup, managing persistent volumes for Postgres, and configuring the local Ingress (Traefik by default in k3s) for Blue-Green switching.
 *   **Environment Variables:**
     *   Ensure the CI/CD pipeline injects the variables defined in `.env.example` (e.g., `VITE_API_URL`, `VITE_WS_URL`, `APP_COLOR`, `DATABASE_URL`, `MQTT_BROKER_URL`).
 

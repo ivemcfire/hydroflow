@@ -1,5 +1,6 @@
 // File: src/backend/controllers/activityController.ts
 import { Request, Response } from 'express';
+import { db } from '../firebase';
 
 export interface ActivityLog {
   id: string;
@@ -8,37 +9,34 @@ export interface ActivityLog {
   timestamp: string;
 }
 
-// In-memory store for now
-export const activityLogs: ActivityLog[] = [
-  {
-    id: 'act-1',
-    type: 'info',
-    message: 'System initialized successfully',
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 'act-2',
-    type: 'success',
-    message: 'Nutrient Pump A started on schedule',
-    timestamp: new Date(Date.now() - 1800000).toISOString(),
-  }
-];
-
-export const addActivityLog = (type: ActivityLog['type'], message: string) => {
-  const newLog: ActivityLog = {
-    id: `act-${Date.now()}`,
-    type,
-    message,
-    timestamp: new Date().toISOString(),
-  };
-  activityLogs.unshift(newLog); // Add to beginning
-  
-  // Keep only the last 50 logs
-  if (activityLogs.length > 50) {
-    activityLogs.pop();
+export const addActivityLog = async (type: ActivityLog['type'], message: string) => {
+  try {
+    const newLog = {
+      type,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    await db.collection('activity').add(newLog);
+  } catch (error) {
+    console.error('Error adding activity log:', error);
   }
 };
 
-export const getActivityLogs = (req: Request, res: Response) => {
-  res.json(activityLogs);
+export const getActivityLogs = async (req: Request, res: Response) => {
+  try {
+    const snapshot = await db.collection('activity')
+      .orderBy('timestamp', 'desc')
+      .limit(50)
+      .get();
+    
+    const logs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    res.json(logs);
+  } catch (error) {
+    console.error('Error getting activity logs:', error);
+    res.status(500).json({ error: 'Failed to fetch activity logs' });
+  }
 };

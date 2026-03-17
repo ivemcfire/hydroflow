@@ -3,6 +3,8 @@ import { Request, Response } from 'express';
 import { addActivityLog } from './activityController';
 import { addNotification } from './notificationController';
 import { addSensorLog } from './analyticsController';
+import { db } from '../firebase';
+import { publishSensor } from '../services/mqttService';
 
 export interface NodeRule {
   id: string;
@@ -24,166 +26,202 @@ export interface IrrigationNode {
   time: string;
 }
 
-// In-memory store for now
-let nodes: IrrigationNode[] = [
-  { id: 'node-1', name: 'North Garden', location: 'Backyard North', hardware: ['Main Pump', 'Zone 1 Valve', 'Soil Sensor', 'Tank Sensor'], rules: 1, status: 'Online', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-  { id: 'node-2', name: 'South Greenhouse', location: 'Greenhouse Area', hardware: ['Zone 2 Valve', 'Temp Sensor'], rules: 0, status: 'Online', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-];
+export const getNodes = async (req: Request, res: Response) => {
+  try {
+    const snapshot = await db.collection('nodes').get();
+    const nodes = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-let rules: NodeRule[] = [
-  { id: 'rule-1', nodeId: 'node-1', sensor: 'Soil Moisture', condition: '<', threshold: 30, action: 'Turn On', component: 'Main Pump' }
-];
+    // Seed if empty
+    if (nodes.length === 0) {
+      const initialNodes = [
+        { name: 'North Garden', location: 'Backyard North', hardware: ['Main Pump', 'Zone 1 Valve', 'Soil Sensor', 'Tank Sensor'], status: 'Online', lastSeen: new Date().toISOString() },
+        { name: 'South Greenhouse', location: 'Greenhouse Area', hardware: ['Zone 2 Valve', 'Temp Sensor'], status: 'Online', lastSeen: new Date().toISOString() },
+      ];
+      const batch = db.batch();
+      initialNodes.forEach(n => {
+        const ref = db.collection('nodes').doc();
+        batch.set(ref, n);
+      });
+      await batch.commit();
+      const newSnapshot = await db.collection('nodes').get();
+      return res.json(newSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }
 
-export const getNodes = (req: Request, res: Response) => {
-  res.json(nodes);
-};
-
-export const createNode = (req: Request, res: Response) => {
-  const newNode: IrrigationNode = {
-    ...req.body,
-    id: `node-${Date.now()}`,
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  };
-  nodes.push(newNode);
-  addActivityLog('success', `Node ${newNode.name} created`);
-  res.status(201).json(newNode);
-};
-
-export const updateNode = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const index = nodes.findIndex(n => n.id === id);
-  
-  if (index === -1) {
-    return res.status(404).json({ error: 'Node not found' });
+    res.json(nodes);
+  } catch (error) {
+    console.error('Error getting nodes:', error);
+    res.status(500).json({ error: 'Failed to fetch nodes' });
   }
-
-  nodes[index] = {
-    ...nodes[index],
-    ...req.body,
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  };
-  
-  addActivityLog('info', `Node ${nodes[index].name} updated`);
-  res.json(nodes[index]);
 };
 
-export const deleteNode = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const node = nodes.find(n => n.id === id);
-  if (!node) return res.status(404).json({ error: 'Node not found' });
-
-  nodes = nodes.filter(n => n.id !== id);
-  rules = rules.filter(r => r.nodeId !== id);
-  
-  addActivityLog('warning', `Node ${node.name} deleted`);
-  res.json({ success: true });
-};
-
-// Rules endpoints
-export const getNodeRules = (req: Request, res: Response) => {
-  const { nodeId } = req.params;
-  res.json(rules.filter(r => r.nodeId === nodeId));
-};
-
-export const createRule = (req: Request, res: Response) => {
-  const { nodeId } = req.params;
-  const newRule: NodeRule = {
-    ...req.body,
-    id: `rule-${Date.now()}`,
-    nodeId
-  };
-  rules.push(newRule);
-  
-  // Update node rule count
-  const node = nodes.find(n => n.id === nodeId);
-  if (node) {
-    node.rules = rules.filter(r => r.nodeId === nodeId).length;
+export const createNode = async (req: Request, res: Response) => {
+  try {
+    const newNode = {
+      ...req.body,
+      lastSeen: new Date().toISOString()
+    };
+    const docRef = await db.collection('nodes').add(newNode);
+    await addActivityLog('success', `Node ${newNode.name} created`);
+    res.status(201).json({ id: docRef.id, ...newNode });
+  } catch (error) {
+    console.error('Error creating node:', error);
+    res.status(500).json({ error: 'Failed to create node' });
   }
-  
-  addActivityLog('info', `New rule added to node`);
-  res.status(201).json(newRule);
 };
 
-export const deleteRule = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const rule = rules.find(r => r.id === id);
-  if (!rule) return res.status(404).json({ error: 'Rule not found' });
-
-  rules = rules.filter(r => r.id !== id);
-  
-  // Update node rule count
-  const node = nodes.find(n => n.id === rule.nodeId);
-  if (node) {
-    node.rules = rules.filter(r => r.nodeId === rule.nodeId).length;
+export const updateNode = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  try {
+    const nodeRef = db.collection('nodes').doc(id);
+    await nodeRef.update({
+      ...req.body,
+      lastSeen: new Date().toISOString()
+    });
+    const updated = await nodeRef.get();
+    await addActivityLog('info', `Node ${updated.data()?.name} updated`);
+    res.json({ id, ...updated.data() });
+  } catch (error) {
+    console.error('Error updating node:', error);
+    res.status(500).json({ error: 'Failed to update node' });
   }
+};
 
-  res.json({ success: true });
+export const deleteNode = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  try {
+    const nodeRef = db.collection('nodes').doc(id);
+    const node = await nodeRef.get();
+    if (!node.exists) return res.status(404).json({ error: 'Node not found' });
+
+    // Delete subcollection rules
+    const rulesSnapshot = await nodeRef.collection('rules').get();
+    const batch = db.batch();
+    rulesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+    batch.delete(nodeRef);
+    await batch.commit();
+
+    await addActivityLog('warning', `Node ${node.data()?.name} deleted`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting node:', error);
+    res.status(500).json({ error: 'Failed to delete node' });
+  }
+};
+
+export const getNodeRules = async (req: Request, res: Response) => {
+  const nodeId = req.params.nodeId as string;
+  try {
+    const snapshot = await db.collection('nodes').doc(nodeId).collection('rules').get();
+    const rules = snapshot.docs.map(doc => ({
+      id: doc.id,
+      nodeId,
+      ...doc.data()
+    }));
+    res.json(rules);
+  } catch (error) {
+    console.error('Error getting node rules:', error);
+    res.status(500).json({ error: 'Failed to fetch node rules' });
+  }
+};
+
+export const createRule = async (req: Request, res: Response) => {
+  const nodeId = req.params.nodeId as string;
+  try {
+    const newRule = {
+      ...req.body,
+    };
+    const docRef = await db.collection('nodes').doc(nodeId).collection('rules').add(newRule);
+    await addActivityLog('info', `New rule added to node`);
+    res.status(201).json({ id: docRef.id, nodeId, ...newRule });
+  } catch (error) {
+    console.error('Error creating rule:', error);
+    res.status(500).json({ error: 'Failed to create rule' });
+  }
+};
+
+export const deleteRule = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  // This is a bit tricky because rules are in subcollections
+  // We'll search for the rule across all nodes if nodeId isn't provided
+  // Or we can assume the client provides nodeId in some way.
+  // For now, let's try to find it.
+  try {
+    const nodesSnapshot = await db.collection('nodes').get();
+    for (const nodeDoc of nodesSnapshot.docs) {
+      const ruleRef = nodeDoc.ref.collection('rules').doc(id);
+      const ruleDoc = await ruleRef.get();
+      if (ruleDoc.exists) {
+        await ruleRef.delete();
+        return res.json({ success: true });
+      }
+    }
+    res.status(404).json({ error: 'Rule not found' });
+  } catch (error) {
+    console.error('Error deleting rule:', error);
+    res.status(500).json({ error: 'Failed to delete rule' });
+  }
 };
 
 // --- SIMULATION ENGINE ---
-// This simulates the backend evaluating rules against incoming sensor data
 export let mockSensorData: Record<string, number> = {
   'Soil Moisture': 45,
   'Temperature': 22,
   'Tank Level': 80
 };
 
-export const evaluateRules = () => {
-  // Simulate sensor data fluctuating slightly
-  mockSensorData['Soil Moisture'] += (Math.random() * 4 - 2); // +/- 2
-  mockSensorData['Temperature'] += (Math.random() * 2 - 1); // +/- 1
-  mockSensorData['Tank Level'] -= (Math.random() * 0.5); // slowly drains
+export const evaluateRules = async () => {
+  mockSensorData['Soil Moisture'] += (Math.random() * 4 - 2);
+  mockSensorData['Temperature'] += (Math.random() * 2 - 1);
+  mockSensorData['Tank Level'] -= (Math.random() * 0.5);
   
-  // Keep bounds
   mockSensorData['Soil Moisture'] = Math.max(0, Math.min(100, mockSensorData['Soil Moisture']));
   mockSensorData['Tank Level'] = Math.max(0, Math.min(100, mockSensorData['Tank Level']));
 
-  // Log to DB
-  addSensorLog('Soil Moisture', Number(mockSensorData['Soil Moisture'].toFixed(1)), '%');
-  addSensorLog('Temperature', Number(mockSensorData['Temperature'].toFixed(1)), '°C');
-  addSensorLog('Tank Level', Number(mockSensorData['Tank Level'].toFixed(1)), '%');
+  // Publish via MQTT (this will trigger Firestore updates via mqttService)
+  publishSensor('node-1', 'Soil Moisture', Number(mockSensorData['Soil Moisture'].toFixed(1)));
+  publishSensor('node-1', 'Temperature', Number(mockSensorData['Temperature'].toFixed(1)));
+  publishSensor('node-1', 'Tank Level', Number(mockSensorData['Tank Level'].toFixed(1)));
 
-  // Check critical conditions for notifications
-  if (mockSensorData['Tank Level'] < 20) {
-    if (Math.random() < 0.1) {
-      addNotification('warning', `Tank Level is critically low (${Math.round(mockSensorData['Tank Level'])}%)`);
-    }
+  if (mockSensorData['Tank Level'] < 20 && Math.random() < 0.1) {
+    await addNotification('warning', `Tank Level is critically low (${Math.round(mockSensorData['Tank Level'])}%)`);
   }
   
-  if (mockSensorData['Soil Moisture'] < 25) {
-    if (Math.random() < 0.1) {
-      addNotification('warning', `Soil Moisture is very low (${Math.round(mockSensorData['Soil Moisture'])}%)`);
-    }
+  if (mockSensorData['Soil Moisture'] < 25 && Math.random() < 0.1) {
+    await addNotification('warning', `Soil Moisture is very low (${Math.round(mockSensorData['Soil Moisture'])}%)`);
   }
   
-  if (mockSensorData['Temperature'] > 35) {
-    if (Math.random() < 0.1) {
-      addNotification('error', `High Temperature Alert: ${Math.round(mockSensorData['Temperature'])}°C`);
-    }
+  if (mockSensorData['Temperature'] > 35 && Math.random() < 0.1) {
+    await addNotification('error', `High Temperature Alert: ${Math.round(mockSensorData['Temperature'])}°C`);
   }
 
-  // Evaluate rules
-  rules.forEach(rule => {
-    const currentValue = mockSensorData[rule.sensor];
-    if (currentValue === undefined) return;
+  // Fetch all rules from all nodes
+  try {
+    const nodesSnapshot = await db.collection('nodes').get();
+    for (const nodeDoc of nodesSnapshot.docs) {
+      const rulesSnapshot = await nodeDoc.ref.collection('rules').get();
+      rulesSnapshot.docs.forEach(ruleDoc => {
+        const rule = ruleDoc.data() as any;
+        const currentValue = mockSensorData[rule.sensor];
+        if (currentValue === undefined) return;
 
-    let conditionMet = false;
-    switch (rule.condition) {
-      case '<': conditionMet = currentValue < rule.threshold; break;
-      case '>': conditionMet = currentValue > rule.threshold; break;
-      case '=': conditionMet = Math.abs(currentValue - rule.threshold) < 1; break; // fuzzy equals for floats
-    }
+        let conditionMet = false;
+        switch (rule.condition) {
+          case '<': conditionMet = currentValue < rule.threshold; break;
+          case '>': conditionMet = currentValue > rule.threshold; break;
+          case '=': conditionMet = Math.abs(currentValue - rule.threshold) < 1; break;
+        }
 
-    if (conditionMet) {
-      // In a real app, we would check if the component is already in this state
-      // and publish an MQTT message to change it.
-      // For this simulation, we'll just log it occasionally
-      if (Math.random() < 0.05) { // 5% chance to log to prevent spamming the activity feed
-        addActivityLog('info', `Rule triggered: ${rule.sensor} is ${Math.round(currentValue)}. Action: ${rule.action} ${rule.component}`);
-      }
+        if (conditionMet && Math.random() < 0.05) {
+          addActivityLog('info', `Rule triggered: ${rule.sensor} is ${Math.round(currentValue)}. Action: ${rule.action} ${rule.component}`);
+        }
+      });
     }
-  });
+  } catch (error) {
+    console.error('Error in simulation engine:', error);
+  }
 };
 
-// Start the evaluation engine
-setInterval(evaluateRules, 5000); // Run every 5 seconds
+setInterval(evaluateRules, 10000); // Run every 10 seconds to reduce load

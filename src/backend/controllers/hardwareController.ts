@@ -1,8 +1,9 @@
 // File: src/backend/controllers/hardwareController.ts
 import { Request, Response } from 'express';
+import { db } from '../firebase';
 
 export interface HardwareComponent {
-  id: number;
+  id: string;
   name: string;
   type: string;
   status: string;
@@ -15,78 +16,97 @@ export interface HardwareComponent {
 }
 
 export interface Automation {
-  id: number;
-  sourceId: number;
-  targets: { id: number; action: string }[];
+  id: string;
+  sourceId: string;
+  targets: { id: string; action: string }[];
   condition: string;
   status: string;
 }
 
-let components: HardwareComponent[] = [
-  { id: 1, name: 'Main Pump', type: 'Pump', status: 'Online', bg: 'bg-blue-50', isOn: true, zone: 'Main System' },
-  { id: 2, name: 'Zone 1 Valve', type: 'Valve', status: 'Online', bg: 'bg-indigo-50', isOn: false, zone: 'Zone 1' },
-  { id: 3, name: 'Soil Sensor', type: 'Soil Sensor', status: 'Online', bg: 'bg-orange-50', value: 55, zone: 'Zone 1' },
-  { id: 4, name: 'Primary Tank', type: 'Dual IR Sensor', status: 'Online', bg: 'bg-cyan-50', sensor10: true, sensor90: false, zone: 'Main System' },
-  { id: 5, name: 'Secondary Pump', type: 'Pump', status: 'Online', bg: 'bg-blue-50', isOn: false, zone: 'Main System' },
-  { id: 6, name: 'Zone 2 Valve', type: 'Valve', status: 'Online', bg: 'bg-indigo-50', isOn: false, zone: 'Zone 2' },
-];
+export const getComponents = async (req: Request, res: Response) => {
+  try {
+    const snapshot = await db.collection('hardware').get();
+    const components = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-let automations: Automation[] = [
-  { 
-    id: 1, 
-    sourceId: 3, 
-    targets: [
-      { id: 1, action: 'Turn On' },
-      { id: 5, action: 'Turn On' },
-      { id: 2, action: 'Turn On' },
-      { id: 6, action: 'Turn On' }
-    ], 
-    condition: 'Value < 40%', 
-    status: 'Active' 
-  },
-  { 
-    id: 2, 
-    sourceId: 4, 
-    targets: [{ id: 1, action: 'Turn Off' }], 
-    condition: 'Level < 10%', 
-    status: 'Active' 
-  },
-  { 
-    id: 3, 
-    sourceId: 3, 
-    targets: [{ id: 2, action: 'Turn Off' }], 
-    condition: 'Value > 70%', 
-    status: 'Paused' 
-  },
-];
+    if (components.length === 0) {
+      const initialComponents = [
+        { name: 'Main Pump', type: 'Pump', status: 'Online', bg: 'bg-blue-50', isOn: true, zone: 'Main System' },
+        { name: 'Zone 1 Valve', type: 'Valve', status: 'Online', bg: 'bg-indigo-50', isOn: false, zone: 'Zone 1' },
+        { name: 'Soil Sensor', type: 'Soil Sensor', status: 'Online', bg: 'bg-orange-50', value: 55, zone: 'Zone 1' },
+        { name: 'Primary Tank', type: 'Dual IR Sensor', status: 'Online', bg: 'bg-cyan-50', sensor10: true, sensor90: false, zone: 'Main System' },
+        { name: 'Secondary Pump', type: 'Pump', status: 'Online', bg: 'bg-blue-50', isOn: false, zone: 'Main System' },
+        { name: 'Zone 2 Valve', type: 'Valve', status: 'Online', bg: 'bg-indigo-50', isOn: false, zone: 'Zone 2' },
+      ];
+      const batch = db.batch();
+      initialComponents.forEach(c => {
+        const ref = db.collection('hardware').doc();
+        batch.set(ref, c);
+      });
+      await batch.commit();
+      const newSnapshot = await db.collection('hardware').get();
+      return res.json(newSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }
 
-export const getComponents = (req: Request, res: Response) => {
-  res.json(components);
-};
-
-export const updateComponent = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const index = components.findIndex(c => c.id === parseInt(id as string));
-  if (index !== -1) {
-    components[index] = { ...components[index], ...req.body };
-    res.json(components[index]);
-  } else {
-    res.status(404).json({ error: 'Component not found' });
+    res.json(components);
+  } catch (error) {
+    console.error('Error getting components:', error);
+    res.status(500).json({ error: 'Failed to fetch components' });
   }
 };
 
-export const addComponent = (req: Request, res: Response) => {
-  const newComp = { ...req.body, id: Date.now() };
-  components.push(newComp);
-  res.status(201).json(newComp);
+export const updateComponent = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  try {
+    const ref = db.collection('hardware').doc(id);
+    await ref.update(req.body);
+    const updated = await ref.get();
+    res.json({ id, ...updated.data() });
+  } catch (error) {
+    console.error('Error updating component:', error);
+    res.status(500).json({ error: 'Failed to update component' });
+  }
 };
 
-export const deleteComponent = (req: Request, res: Response) => {
-  const { id } = req.params;
-  components = components.filter(c => c.id !== parseInt(id as string));
-  res.json({ success: true });
+export const addComponent = async (req: Request, res: Response) => {
+  try {
+    const docRef = await db.collection('hardware').add(req.body);
+    res.status(201).json({ id: docRef.id, ...req.body });
+  } catch (error) {
+    console.error('Error adding component:', error);
+    res.status(500).json({ error: 'Failed to add component' });
+  }
 };
 
-export const getAutomations = (req: Request, res: Response) => {
-  res.json(automations);
+export const deleteComponent = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  try {
+    await db.collection('hardware').doc(id).delete();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting component:', error);
+    res.status(500).json({ error: 'Failed to delete component' });
+  }
+};
+
+export const getAutomations = async (req: Request, res: Response) => {
+  try {
+    const snapshot = await db.collection('automations').get();
+    const automations = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    if (automations.length === 0) {
+      // Seed with some initial automations if needed
+      // For now, return empty or mock
+    }
+    
+    res.json(automations);
+  } catch (error) {
+    console.error('Error getting automations:', error);
+    res.status(500).json({ error: 'Failed to fetch automations' });
+  }
 };

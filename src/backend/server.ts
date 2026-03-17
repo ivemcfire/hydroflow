@@ -4,6 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api';
+import { initMqtt } from './services/mqttService';
 
 dotenv.config();
 
@@ -18,6 +19,9 @@ app.use(express.json());
 app.use('/api', apiRoutes);
 
 async function startServer() {
+  // Initialize MQTT
+  initMqtt();
+
   if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../../dist/frontend');
     app.use(express.static(frontendPath));

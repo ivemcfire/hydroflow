@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /nodes
+    //   - name: string (required)
+    //   - location: string (required)
+    //   - hardware: list of strings (optional)
+    //   - status: string ('Online', 'Offline') (required)
+    //   - lastSeen: timestamp (optional)
+    //
+    // Collection: /nodes/{nodeId}/rules
+    //   - sensor: string (required)
+    //   - condition: string ('<', '>', '=') (required)
+    //   - threshold: number (required)
+    //   - action: string (required)
+    //   - component: string (required)
+    //
+    // Collection: /pumps
+    //   - name: string (required)
+    //   - status: string ('on', 'off') (required)
+    //   - flowRate: number (required)
+    //
+    // Collection: /activity
+    //   - type: string ('info', 'success', 'warning', 'error') (required)
+    //   - message: string (required)
+    //   - timestamp: timestamp (required)
+    //
+    // Collection: /notifications
+    //   - type: string ('info', 'warning', 'error') (required)
+    //   - message: string (required)
+    //   - read: bool (required)
+    //   - timestamp: timestamp (required)
+    //
+    // Collection: /sensor_logs
+    //   - sensor: string (required)
+    //   - value: number (required)
+    //   - unit: string (required)
+    //   - timestamp: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "ive.mcfire@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidNode(data) {
+      return hasRequiredFields(['name', 'location', 'status']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.location is string && data.location.size() > 0 && data.location.size() < 100 &&
+             data.status in ['Online', 'Offline'];
+    }
+
+    function isValidRule(data) {
+      return hasRequiredFields(['sensor', 'condition', 'threshold', 'action', 'component']) &&
+             data.sensor is string && data.condition in ['<', '>', '='] &&
+             data.threshold is number && data.action is string && data.component is string;
+    }
+
+    function isValidPump(data) {
+      return hasRequiredFields(['name', 'status', 'flowRate']) &&
+             data.name is string && data.status in ['on', 'off'] &&
+             data.flowRate is number;
+    }
+
+    function isValidActivity(data) {
+      return hasRequiredFields(['type', 'message', 'timestamp']) &&
+             data.type in ['info', 'success', 'warning', 'error'] &&
+             data.message is string && data.timestamp is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return hasRequiredFields(['type', 'message', 'read', 'timestamp']) &&
+             data.type in ['info', 'warning', 'error'] &&
+             data.message is string && data.read is bool && data.timestamp is timestamp;
+    }
+
+    function isValidSensorLog(data) {
+      return hasRequiredFields(['sensor', 'value', 'unit', 'timestamp']) &&
+             data.sensor is string && data.value is number && data.unit is string && data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /nodes/{nodeId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidNode(request.resource.data);
+      allow delete: if isAdmin();
+
+      match /rules/{ruleId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated() && isValidRule(request.resource.data);
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /pumps/{pumpId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidPump(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /activity/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidActivity(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /sensor_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSensorLog(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

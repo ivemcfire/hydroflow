@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "IrrigationNode": {
+      "title": "Irrigation Node",
+      "description": "A hardware node in the irrigation system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the node." },
+        "location": { "type": "string", "description": "Physical location." },
+        "hardware": { "type": "array", "items": { "type": "string" }, "description": "List of attached hardware." },
+        "status": { "type": "string", "enum": ["Online", "Offline"], "description": "Current connectivity status." },
+        "lastSeen": { "type": "string", "format": "date-time", "description": "Last heartbeat from node." }
+      },
+      "required": ["name", "location", "status"]
+    },
+    "NodeRule": {
+      "title": "Node Rule",
+      "description": "An automation rule for a specific node.",
+      "type": "object",
+      "properties": {
+        "sensor": { "type": "string", "description": "Sensor to monitor." },
+        "condition": { "type": "string", "enum": ["<", ">", "="], "description": "Comparison operator." },
+        "threshold": { "type": "number", "description": "Value to compare against." },
+        "action": { "type": "string", "description": "Action to perform (e.g., 'Turn On')." },
+        "component": { "type": "string", "description": "Hardware component to act upon." }
+      },
+      "required": ["sensor", "condition", "threshold", "action", "component"]
+    },
+    "Pump": {
+      "title": "Pump",
+      "description": "A water or nutrient pump.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the pump." },
+        "status": { "type": "string", "enum": ["on", "off"], "description": "Current status." },
+        "flowRate": { "type": "number", "description": "Current flow rate in L/min." }
+      },
+      "required": ["name", "status", "flowRate"]
+    },
+    "ActivityLog": {
+      "title": "Activity Log",
+      "description": "A record of a system event.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["info", "success", "warning", "error"], "description": "Severity level." },
+        "message": { "type": "string", "description": "Event description." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the event occurred." }
+      },
+      "required": ["type", "message", "timestamp"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "An alert for the user.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["info", "warning", "error"], "description": "Alert severity." },
+        "message": { "type": "string", "description": "Alert message." },
+        "read": { "type": "boolean", "description": "Whether the alert has been read." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the alert was generated." }
+      },
+      "required": ["type", "message", "read", "timestamp"]
+    },
+    "SensorLog": {
+      "title": "Sensor Log",
+      "description": "A historical sensor reading.",
+      "type": "object",
+      "properties": {
+        "sensor": { "type": "string", "description": "Sensor name." },
+        "value": { "type": "number", "description": "Measured value." },
+        "unit": { "type": "string", "description": "Measurement unit." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the reading was taken." }
+      },
+      "required": ["sensor", "value", "unit", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/nodes": { "schema": "IrrigationNode", "description": "List of irrigation nodes." },
+    "/nodes/{nodeId}/rules": { "schema": "NodeRule", "description": "Automation rules for a node." },
+    "/pumps": { "schema": "Pump", "description": "System pumps." },
+    "/activity": { "schema": "ActivityLog", "description": "System activity logs." },
+    "/notifications": { "schema": "Notification", "description": "User alerts." },
+    "/sensor_logs": { "schema": "SensorLog", "description": "Historical sensor data." }
+  }
+}
