@@ -1,57 +1,54 @@
-HydroFlow
-HydroFlow is an intelligent irrigation system that monitors water levels and automates refills using a Kubernetes-managed backend and ESP32-S2 Mini sensors.
+# HydroFlow
 
-🏗 Project Structure
-The project is organized as a Monorepo to keep the hardware, software, and infrastructure in sync.
+Intelligent homelab irrigation: ESP32-S2 Mini tank sensors publish water
+levels over MQTT; a TypeScript backend records telemetry, runs the refill
+automation, and serves a live Angular dashboard. Runs on a k3s cluster.
 
-/firmware: C++ code for the ESP32-S2 Mini sensors (PlatformIO).
+## Structure
 
-/backend: Node.js service that processes data and manages logic.
+| Path | What |
+|---|---|
+| `firmware/tank-a-s2-mini/` | ESP32-S2 Mini sensor firmware (PlatformIO) |
+| `backend/` | Node.js/TypeScript: MQTT ingest → Postgres, refill state machine, REST + WebSocket API, Gemini insight |
+| `frontend/` | Angular dashboard (SSR) — live mirror of backend state |
+| `docs/mqtt-topics.md` | The firmware ↔ backend MQTT contract |
 
-/frontend: Angular dashboard to visualize water levels in real-time.
+Kubernetes manifests live in the separate `homelab-config` repo
+(`apps/hydroflow-backend/`, `apps/hydroflow-frontend/`) — not here.
 
-/infra: Kubernetes manifests and configuration files for the cluster.
+## Data flow
 
-🚀 Quick Start
+1. Float switch flips → firmware publishes `hydroflow/tank_A/level_low` (`ON`/`OFF`).
+2. Backend validates, stores in Postgres, broadcasts on `/ws`.
+3. `level_low` ON starts the refill chain: `hydroflow/cmd/Valve_tank_A_Inlet`
+   + `hydroflow/cmd/Pump_Main` ON (QoS 1); `level_high` ON — or a 20-minute
+   timeout — stops it.
+4. Dashboard shows live tank state, automation activity, and an optional
+   Gemini one-liner.
 
-1. Hardware (The "Finger")
-   The sensor is an ESP32-S2 Mini connected to a water level switch on Pin 7.
+## Development
 
-Location: firmware/tank-a-s2-mini
+```bash
+cd backend  && npm install && npm run dev    # API on :3000
+cd frontend && npm install && npm run dev    # dashboard, proxies /api + /ws
+```
 
-Action: Flash via PlatformIO. It uses a static IP (192.168.100.240) to communicate with the broker.
+Gates (CI enforces before building images): `npm run lint && npm test && npm run build` in both.
 
-2. Infrastructure (The "Nervous System")
-   The system runs on a k3s cluster.
+## Releases
 
-MQTT Broker: Mosquitto (External IP: 192.168.100.207)
+Push to `main` → GitHub Actions runs the gates, then builds multi-arch
+(amd64 + arm64) images to `ghcr.io/ivemcfire/hydroflow-{backend,frontend}`
+with sha-pinned tags. Deploy = bump the pin in homelab-config and
+`kubectl apply`.
 
-Database: PostgreSQL
+## Status
 
-Action: Deploy the manifests in the infra/ folder using kubectl apply -f.
+- [x] tank_A level_low sensor live end to end
+- [x] Refill automation (tested state machine; commands published for real)
+- [x] Dashboard on real data
+- [ ] level_high probe + valve/pump actuator hardware
+- [ ] Camera/level fusion, more tanks
 
-3. Backend & Frontend
-   The "Brain" and "Face" of the project.
-
-Backend: Watches for MQTT messages on hydroflow/tank_A/level_low and saves them to Postgres.
-
-Frontend: Displays the live status of your tanks.
-
-📊 Data Flow
-Sensor detects a change → Publishes to MQTT.
-
-MQTT Broker passes data to the Backend.
-
-Backend saves the event to PostgreSQL.
-
-Frontend pulls the latest data to show on your screen.
-
-🛠 Current Progress
-[x] k3s Cluster setup with Mosquitto and Postgres.
-
-[x] S2 Mini firmware with software debouncing.
-
-[x] Successful data recording for Tank A.
-
-[ ] Next Step: Implement automated refill logic (Refill Alert).
-\
+*(Historical note: branch `antigravity` holds an unrelated React/SQLite
+prototype that predates this line — kept for reference, not maintained.)*
