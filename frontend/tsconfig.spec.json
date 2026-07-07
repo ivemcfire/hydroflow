@@ -1,0 +1,10 @@
+/* TypeScript program for `ng test` (vitest). The main tsconfig excludes spec
+   files from the app build; this one brings them back in for the test run. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": []
+}

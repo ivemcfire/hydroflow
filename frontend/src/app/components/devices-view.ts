@@ -1,177 +1,109 @@
-import { ChangeDetectionStrategy, Component, inject, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { StateService } from '../state';
-import { ComponentItem } from './component-item';
-import { NodeComponent } from '../models';
 
+// Honest hardware inventory. "Live" lists exactly what /api/state reports
+// (today: one ESP32 tank sensor). "Planned" lists the actuators the backend's
+// Refill_Chain already publishes MQTT commands for (Pump_Main, tank inlet
+// valves) — no firmware subscribes yet, so they are display-only and clearly
+// marked. Nothing here is toggleable: there is no backend endpoint for
+// manual actuator control.
 @Component({
-    selector: 'app-devices-view',
-    standalone: true,
-    imports: [CommonModule, FormsModule, MatIconModule, ComponentItem],
-    template: `
-    <div class="space-y-6">
-      <div class="flex sm:flex-row flex-col justify-between items-start sm:items-end gap-4">
-        <div>
-          <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <mat-icon class="text-sky-500">precision_manufacturing</mat-icon> Hardware Devices
-          </h2>
-          <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">All configured components</p>
-        </div>
-        
-        <div class="flex items-center gap-3 w-full sm:w-auto">
-          <select [(ngModel)]="filterNodeId" class="edit-input w-full sm:w-auto text-sm">
-            <option value="">All Nodes</option>
-            @for (node of state.nodes(); track node.id) {
-              <option [value]="node.id">{{ node.name }}</option>
-            }
-          </select>
-          <button (click)="openAddDevice()" class="bg-gradient-to-r from-sky-400 to-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:from-sky-500 hover:to-indigo-600 transition-all active:scale-95 shadow-lg shadow-sky-200 shrink-0">
-            <mat-icon class="text-sm">add</mat-icon> Add Device
-          </button>
-        </div>
+  selector: 'app-devices-view',
+  standalone: true,
+  imports: [CommonModule, MatIconModule],
+  template: `
+    <div class="space-y-8">
+      <div>
+        <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <mat-icon class="text-sky-500">precision_manufacturing</mat-icon> Hardware
+        </h2>
+        <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">What is physically on the bench today</p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        @for (item of filteredComponents(); track item.component.id) {
-          <div class="relative group h-full">
-            <div class="absolute -top-3 -right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg pointer-events-none">
-              Node: {{ item.nodeName }}
-            </div>
-            <app-component-item 
-              class="h-full block"
-              [component]="item.component"
-              (toggleStatus)="toggleComponent(item.nodeId, $event)"
-              (delete)="deleteComponent(item.nodeId, $event)"
-              (nameChanged)="onNameChanged(item.nodeId, $event)"
-            />
-          </div>
-        } @empty {
-          <div class="md:col-span-2 lg:col-span-3 text-center py-16 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
-            <mat-icon class="text-slate-300 text-5xl h-auto w-auto mb-3">inventory_2</mat-icon>
-            <p class="text-lg font-bold text-slate-500">No devices found</p>
-            <p class="text-sm text-slate-400 mt-1">Add devices to your nodes to control them here.</p>
-          </div>
-        }
-      </div>
-    </div>
-
-    <!-- Add Device Dialog Overlay -->
-    @if (showAddDeviceDialog()) {
-      <div class="fixed inset-0 z-[60] flex items-center justify-center fade-in">
-        <div class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" tabindex="-1" role="button" (click)="showAddDeviceDialog.set(false)" (keydown.escape)="showAddDeviceDialog.set(false)"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden slide-in-top">
-          <div class="p-6 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
-             <div class="w-10 h-10 bg-sky-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-sky-200">
-                <mat-icon>settings_input_component</mat-icon>
-             </div>
-             <div>
-               <h3 class="text-lg font-bold text-slate-800">Add Device</h3>
-               <p class="text-xs text-slate-500 uppercase tracking-wider font-bold">New hardware component</p>
-             </div>
-          </div>
-          <div class="p-6 space-y-4">
-            <div>
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Parent Node</label>
-              <select [ngModel]="newNodeId()" (ngModelChange)="newNodeId.set($event)" class="edit-input w-full text-sm">
-                @for (node of state.nodes(); track node.id) {
-                  <option [value]="node.id">{{ node.name }} ({{ node.location }})</option>
+      <!-- Live devices: exactly what /api/state reports -->
+      <section>
+        <h3 class="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Live
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          @for (device of state.devices(); track device.deviceId) {
+            <div class="glass-card rounded-2xl p-5">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="bg-emerald-50 text-emerald-500 p-3 rounded-xl">
+                  <mat-icon>memory</mat-icon>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-slate-800">{{ device.deviceId }}</h4>
+                  <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">ESP32-S2 float sensor</p>
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                @for (sensor of device.sensors; track sensor.sensor_type) {
+                  <div class="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2">
+                    <span class="font-bold text-slate-500 uppercase tracking-wider">{{ sensor.sensor_type }}</span>
+                    <span class="flex items-center gap-2">
+                      <span class="font-semibold" [ngClass]="{
+                        'text-rose-600': sensor.value === 1,
+                        'text-emerald-600': sensor.value === 0,
+                        'text-slate-400': sensor.value === null
+                      }">{{ sensor.value === 1 ? 'ON' : sensor.value === 0 ? 'OFF' : '—' }}</span>
+                      <span class="text-slate-300">{{ sensor.timestamp | date:'shortTime' }}</span>
+                    </span>
+                  </div>
                 }
-              </select>
+              </div>
             </div>
-            <div>
-              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Device Type</label>
-              <select [ngModel]="newDeviceType()" (ngModelChange)="newDeviceType.set($event)" class="edit-input w-full text-sm">
-                <option value="pump">Water Pump</option>
-                <option value="valve">Valve</option>
-                <option value="soil_humidity">Soil Humidity Sensor</option>
-                <option value="water_level">Water Level Sensor</option>
-              </select>
+          } @empty {
+            <div class="md:col-span-2 lg:col-span-3 text-center py-16 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+              <mat-icon class="text-slate-300 text-5xl h-auto w-auto mb-3">sensors_off</mat-icon>
+              <p class="text-lg font-bold text-slate-500">No devices reporting</p>
+              <p class="text-sm text-slate-400 mt-1">Devices appear here as soon as the backend receives their telemetry.</p>
             </div>
-          </div>
-          <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-             <button (click)="showAddDeviceDialog.set(false)" class="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-white transition-colors">Cancel</button>
-             <button (click)="submitAddDevice()" [disabled]="!newNodeId() || !newDeviceType()" class="px-5 py-2.5 bg-sky-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-sky-200 hover:bg-sky-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Add Device</button>
-          </div>
+          }
         </div>
-      </div>
-    }
+      </section>
+
+      <!-- Planned hardware: backend automation targets with no physical device yet -->
+      <section>
+        <h3 class="text-sm font-bold text-slate-600 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-slate-300"></span> Planned — no hardware yet
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          @for (item of plannedHardware; track item.name) {
+            <div class="rounded-2xl p-5 border-2 border-dashed border-slate-200 bg-slate-50/50 opacity-75">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="bg-slate-100 text-slate-400 p-3 rounded-xl">
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-slate-500">{{ item.name }}</h4>
+                  <p class="text-[10px] text-amber-500 uppercase tracking-wider font-bold">Planned — no hardware yet</p>
+                </div>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">{{ item.note }}</p>
+            </div>
+          }
+        </div>
+        <p class="text-xs text-slate-400 mt-4 leading-relaxed max-w-2xl">
+          The backend's refill automation already publishes MQTT commands to
+          <code class="bg-slate-100 px-1 rounded">hydroflow/cmd/&lt;actuator&gt;</code> for these — nothing
+          subscribes yet. Manual toggles will appear once actuator firmware exists and the backend exposes
+          a control endpoint.
+        </p>
+      </section>
+    </div>
   `,
-    changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DevicesView {
-    state = inject(StateService);
+  state = inject(StateService);
 
-    filterNodeId = signal('');
-
-    filteredComponents = computed(() => {
-        const filterId = this.filterNodeId();
-        const nodes = this.state.nodes();
-        const result: { nodeId: string; nodeName: string; component: NodeComponent }[] = [];
-
-        for (const node of nodes) {
-            if (!filterId || filterId === node.id) {
-                for (const comp of node.components) {
-                    result.push({ nodeId: node.id, nodeName: node.name, component: comp });
-                }
-            }
-        }
-        return result;
-    });
-
-    // Add Device state
-    showAddDeviceDialog = signal(false);
-    newNodeId = signal('');
-    newDeviceType = signal<'pump' | 'valve' | 'soil_humidity' | 'water_level'>('pump');
-
-    openAddDevice() {
-        const nodes = this.state.nodes();
-        if (nodes.length > 0) {
-            this.newNodeId.set(nodes[0].id);
-        }
-        this.newDeviceType.set('pump');
-        this.showAddDeviceDialog.set(true);
-    }
-
-    submitAddDevice() {
-        const nodeId = this.newNodeId();
-        const type = this.newDeviceType();
-        if (!nodeId || !type) return;
-
-        const id = 'c-' + Math.random().toString(36).substring(7);
-        const names: Record<string, string> = {
-            pump: 'New Pump',
-            valve: 'New Valve',
-            soil_humidity: 'Soil Sensor',
-            water_level: 'Level Sensor'
-        };
-        const isSensor = type === 'soil_humidity' || type === 'water_level';
-
-        this.state.addComponent(nodeId, {
-            id,
-            type,
-            name: names[type],
-            status: isSensor ? 'active' : 'off',
-            value: isSensor ? Math.floor(Math.random() * 60) + 30 : undefined,
-            unit: isSensor ? '%' : undefined
-        });
-
-        this.showAddDeviceDialog.set(false);
-    }
-
-    toggleComponent(nodeId: string, component: NodeComponent) {
-        if (component.type === 'pump' || component.type === 'valve') {
-            const newStatus = component.status === 'on' ? 'off' : 'on';
-            this.state.updateComponent(nodeId, component.id, { status: newStatus });
-        }
-    }
-
-    deleteComponent(nodeId: string, componentId: string) {
-        this.state.removeComponent(nodeId, componentId);
-    }
-
-    onNameChanged(nodeId: string, event: { id: string; name: string }) {
-        this.state.updateComponent(nodeId, event.id, { name: event.name });
-    }
+  // Names match the backend's ActuatorCommand targets (backend/src/refill-logic.ts).
+  plannedHardware = [
+    { name: 'Pump_Main', icon: 'water_pump', note: 'Refill pump. Commanded by Refill_Chain; no pump node built yet.' },
+    { name: 'Valve_tank_A_Inlet', icon: 'valve', note: 'Tank A inlet valve. Commanded by Refill_Chain; ESP-NOW valve node still on the bench.' },
+    { name: 'tank_A level_high probe', icon: 'waves', note: 'High float switch to stop refills. Firmware topic reserved (hydroflow/tank_A/level_high).' },
+  ];
 }

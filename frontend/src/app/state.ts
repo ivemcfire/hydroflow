@@ -1,179 +1,264 @@
-import { Injectable, signal, computed } from '@angular/core';
-import { IrrigationNode, NodeComponent, AutomationRule, Alert, WeatherData } from './models';
+import { Injectable, OnDestroy, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import {
+  ActivityRow,
+  AppAlert,
+  BackendAlertPayload,
+  DeviceSummary,
+  LatestReading,
+  SensorReadingPayload,
+  WsConnectionState,
+} from './models';
 
+// Optional environment override for the API/WS origin. Default is same-origin
+// (relative /api and /ws — matches the k8s LB / dev-proxy setups). To point a
+// build elsewhere, define the global before the bundle loads (e.g.
+// `<script>var API_BASE_URL = "http://192.168.100.209:3000";</script>` in
+// index.html) or add an angular.json `define` entry for API_BASE_URL.
+declare const API_BASE_URL: string;
+
+function apiBase(): string {
+  return typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '';
+}
+
+function wsUrl(): string {
+  const base = apiBase();
+  if (base) {
+    return base.replace(/^http/, 'ws').replace(/\/+$/, '') + '/ws';
+  }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}/ws`;
+}
+
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30_000;
+
+/**
+ * Single source of truth for dashboard data, hydrated from the real
+ * HydroFlow backend (GET /api/state, /api/activities, POST /api/ai/insight)
+ * and kept live over the /ws socket. Replaces the old fake-data
+ * SimulationService — there is no synthetic drift or invented hardware here,
+ * only what the backend actually reports.
+ */
 @Injectable({ providedIn: 'root' })
-export class StateService {
-  private _nodes = signal<IrrigationNode[]>([
-    {
-      id: 'node-1',
-      name: 'North Garden',
-      location: 'Backyard North',
-      lastUpdate: new Date().toISOString(),
-      components: [
-        { id: 'p1', type: 'pump', name: 'Main Pump', status: 'off' },
-        { id: 'v1', type: 'valve', name: 'Zone 1 Valve', status: 'off' },
-        { id: 's1', type: 'soil_humidity', name: 'Flower Bed Sensor', status: 'active', value: 35, unit: '%' },
-        { id: 's2', type: 'water_level', name: 'Tank Level', status: 'active', value: 85, unit: '%' }
-      ],
-      rules: [
-        {
-          id: 'r1',
-          name: 'Morning Watering',
-          type: 'schedule',
-          active: true,
-          runMode: 'continuous' as const,
-          config: { startTime: '06:00', duration: 15, days: ['Mon', 'Wed', 'Fri'], actionComponentId: 'p1', actionValue: 'on', stopConditionType: 'duration' as const, stopDuration: 15 }
-        }
-      ]
-    },
-    {
-      id: 'node-2',
-      name: 'South Greenhouse',
-      location: 'Greenhouse Area',
-      lastUpdate: new Date().toISOString(),
-      components: [
-        { id: 'p2', type: 'pump', name: 'Greenhouse Pump', status: 'on' },
-        { id: 's3', type: 'soil_humidity', name: 'Tomato Bed Sensor', status: 'active', value: 22, unit: '%' }
-      ],
-      rules: []
-    }
-  ]);
+export class StateService implements OnDestroy {
+  private platformId = inject(PLATFORM_ID);
 
-  private _alerts = signal<Alert[]>([]);
-  private _weather = signal<WeatherData>((() => {
-    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const days: string[] = [];
-    const today = new Date().getDay();
-    for (let i = 0; i < 7; i++) {
-      days.push(daysOfWeek[(today + i) % 7]);
-    }
+  private _readings = signal<LatestReading[]>([]);
+  private _activities = signal<ActivityRow[]>([]);
+  private _alerts = signal<AppAlert[]>([]);
+  private _wsState = signal<WsConnectionState>('connecting');
+  private _aiInsight = signal<string>('');
+  private _aiError = signal<string | null>(null);
+  private _aiLoading = signal(false);
 
-    return {
-      temp: 24,
-      condition: 'Sunny',
-      humidity: 45,
-      forecast: 'Clear sky for the next 24 hours',
-      rainProbability: 5,
-      dailyForecast: [
-        { day: days[0], temp: 24, icon: 'wb_sunny', rainProb: 5 },
-        { day: days[1], temp: 26, icon: 'wb_sunny', rainProb: 0 },
-        { day: days[2], temp: 22, icon: 'partly_cloudy_day', rainProb: 20 },
-        { day: days[3], temp: 19, icon: 'water_drop', rainProb: 80 },
-        { day: days[4], temp: 20, icon: 'cloud', rainProb: 40 },
-        { day: days[5], temp: 23, icon: 'partly_cloudy_day', rainProb: 10 },
-        { day: days[6], temp: 25, icon: 'wb_sunny', rainProb: 0 }
-      ]
-    };
-  })());
-
-  nodes = this._nodes.asReadonly();
+  readings = this._readings.asReadonly();
+  activities = this._activities.asReadonly();
   alerts = this._alerts.asReadonly();
-  weather = this._weather.asReadonly();
+  wsState = this._wsState.asReadonly();
+  aiInsight = this._aiInsight.asReadonly();
+  aiError = this._aiError.asReadonly();
+  aiLoading = this._aiLoading.asReadonly();
 
-  unreadAlertsCount = computed(() => this._alerts().filter(a => !a.read).length);
+  unreadAlertsCount = computed(() => this._alerts().filter((a) => !a.read).length);
 
-  activePumps = computed(() => {
-    const all = this._nodes().flatMap(n => n.components.filter(c => c.type === 'pump'));
-    return { active: all.filter(p => p.status === 'on').length, total: all.length };
+  /** Devices are derived purely from what /api/state has returned — never invented. */
+  devices = computed<DeviceSummary[]>(() => {
+    const byDevice = new Map<string, LatestReading[]>();
+    for (const r of this._readings()) {
+      const list = byDevice.get(r.device_id) ?? [];
+      list.push(r);
+      byDevice.set(r.device_id, list);
+    }
+    return [...byDevice.entries()].map(([deviceId, sensors]) => ({ deviceId, sensors }));
   });
 
-  averageWaterLevel = computed(() => {
-    const sensors = this._nodes().flatMap(n => n.components.filter(c => c.type === 'water_level' && c.value !== undefined));
-    if (sensors.length === 0) return 0;
-    return Math.round(sensors.reduce((sum, s) => sum + (s.value || 0), 0) / sensors.length);
+  /** level_low value for a device: 1 = ON (low), 0 = OFF (normal), undefined = never reported. */
+  levelLow(deviceId: string): number | null | undefined {
+    return this._readings().find((r) => r.device_id === deviceId && r.sensor_type === 'level_low')?.value;
+  }
+
+  /** Refilling iff the most recent Refill_Chain activity is a Start with no later Stop. */
+  isRefilling = computed(() => this.latestRefillAction() === 'Start');
+
+  /** Per-device refill status: refill activity triggers are "<deviceId> level_low" etc. */
+  isDeviceRefilling(deviceId: string): boolean {
+    return this.latestRefillAction(deviceId) === 'Start';
+  }
+
+  private latestRefillAction(deviceId?: string): string | undefined {
+    const chain = this._activities()
+      .filter(
+        (a) =>
+          a.chain_name === 'Refill_Chain' &&
+          (!deviceId || a.trigger.startsWith(`${deviceId} `)),
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return chain[0]?.action;
+  }
+
+  /** Most recent sensor timestamp across all devices — honest freshness signal. */
+  lastReadingAt = computed<string | null>(() => {
+    const ts = this._readings().map((r) => new Date(r.timestamp).getTime());
+    return ts.length ? new Date(Math.max(...ts)).toISOString() : null;
   });
 
-  totalActiveRules = computed(() => {
-    return this._nodes().flatMap(n => n.rules.filter(r => r.active)).length;
-  });
+  private ws: WebSocket | null = null;
+  private reconnectAttempt = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private destroyed = false;
 
-  markAllAlertsAsRead() {
-    this._alerts.update(alerts => alerts.map(a => ({ ...a, read: true })));
+  /** Kick off hydration + the live WS connection. Browser-only (SSR has no socket). */
+  start(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    void this.hydrate();
+    this.connectWs();
+    void this.refreshInsight();
   }
 
-  addNode(node: IrrigationNode) {
-    this._nodes.update(nodes => [...nodes, node]);
+  async hydrate(): Promise<void> {
+    try {
+      const [state, activities] = await Promise.all([
+        this.getJson<LatestReading[]>('/api/state'),
+        this.getJson<ActivityRow[]>('/api/activities?limit=50'),
+      ]);
+      this._readings.set(state);
+      this._activities.set(activities);
+    } catch (err) {
+      console.error('[state] hydrate failed:', err);
+    }
   }
 
-  updateNode(id: string, updates: Partial<IrrigationNode>) {
-    this._nodes.update(nodes => nodes.map(n => n.id === id ? { ...n, ...updates, lastUpdate: new Date().toISOString() } : n));
+  private async getJson<T>(path: string): Promise<T> {
+    const res = await fetch(`${apiBase()}${path}`);
+    if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+    return (await res.json()) as T;
   }
 
-  removeNode(id: string) {
-    this._nodes.update(nodes => nodes.map(n => n.id === id ? { ...n, id: 'DELETED' } : n).filter(n => n.id !== 'DELETED'));
-  }
+  private connectWs(): void {
+    if (!isPlatformBrowser(this.platformId) || this.destroyed) return;
+    this._wsState.set('connecting');
 
-  addComponent(nodeId: string, component: NodeComponent) {
-    this._nodes.update(nodes => nodes.map(n => {
-      if (n.id === nodeId) {
-        return { ...n, components: [...n.components, component], lastUpdate: new Date().toISOString() };
-      }
-      return n;
-    }));
-  }
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(wsUrl());
+    } catch (err) {
+      console.error('[state] WS construction failed:', err);
+      this.scheduleReconnect();
+      return;
+    }
+    this.ws = socket;
 
-  updateComponent(nodeId: string, componentId: string, updates: Partial<NodeComponent>) {
-    this._nodes.update(nodes => nodes.map(n => {
-      if (n.id === nodeId) {
-        const components = n.components.map(c => c.id === componentId ? { ...c, ...updates } : c);
-        return { ...n, components, lastUpdate: new Date().toISOString() };
-      }
-      return n;
-    }));
-  }
-
-  removeComponent(nodeId: string, componentId: string) {
-    this._nodes.update(nodes => nodes.map(n => {
-      if (n.id === nodeId) {
-        return { ...n, components: n.components.filter(c => c.id !== componentId), lastUpdate: new Date().toISOString() };
-      }
-      return n;
-    }));
-  }
-
-  addRule(nodeId: string, rule: AutomationRule) {
-    this._nodes.update(nodes => nodes.map(n => {
-      if (n.id === nodeId) {
-        return { ...n, rules: [...n.rules, rule], lastUpdate: new Date().toISOString() };
-      }
-      return n;
-    }));
-  }
-
-  updateRule(nodeId: string, ruleId: string, updates: Partial<AutomationRule>) {
-    this._nodes.update(nodes => nodes.map(n => {
-      if (n.id === nodeId) {
-        const rules = n.rules.map(r => r.id === ruleId ? { ...r, ...updates } : r);
-        return { ...n, rules, lastUpdate: new Date().toISOString() };
-      }
-      return n;
-    }));
-  }
-
-  removeRule(nodeId: string, ruleId: string) {
-    this._nodes.update(nodes => nodes.map(n => {
-      if (n.id === nodeId) {
-        return { ...n, rules: n.rules.filter(r => r.id !== ruleId), lastUpdate: new Date().toISOString() };
-      }
-      return n;
-    }));
-  }
-
-  addAlert(alert: Omit<Alert, 'id' | 'timestamp' | 'read'>) {
-    const newAlert: Alert = {
-      ...alert,
-      id: Math.random().toString(36).substring(7),
-      timestamp: new Date().toISOString(),
-      read: false
+    socket.onopen = () => {
+      this.reconnectAttempt = 0;
+      this._wsState.set('open');
+      // We may have missed events while disconnected — re-sync from source of truth.
+      void this.hydrate();
     };
-    this._alerts.update(alerts => [newAlert, ...alerts]);
+
+    socket.onmessage = (ev: MessageEvent<string>) => {
+      let envelope: { event: string; payload: unknown };
+      try {
+        envelope = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      this.handleEnvelope(envelope);
+    };
+
+    socket.onclose = () => {
+      this._wsState.set('closed');
+      this.ws = null;
+      if (!this.destroyed) this.scheduleReconnect();
+    };
   }
 
-  markAlertAsRead(id: string) {
-    this._alerts.update(alerts => alerts.map(a => a.id === id ? { ...a, read: true } : a));
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return;
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.reconnectAttempt, RECONNECT_MAX_MS);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connectWs();
+    }, delay);
+    // Node/vitest: don't let a pending reconnect keep the process alive. No-op in browsers.
+    (this.reconnectTimer as unknown as { unref?: () => void })?.unref?.();
   }
 
-  updateWeather(weather: WeatherData) {
-    this._weather.set(weather);
+  private handleEnvelope(envelope: { event: string; payload: unknown }): void {
+    if (envelope.event === 'sensor:reading') {
+      const reading = envelope.payload as SensorReadingPayload;
+      const updated: LatestReading = {
+        device_id: reading.deviceId,
+        sensor_type: reading.sensorType,
+        value: reading.value,
+        timestamp: new Date().toISOString(),
+      };
+      this._readings.update((readings) => {
+        const idx = readings.findIndex(
+          (r) => r.device_id === updated.device_id && r.sensor_type === updated.sensor_type,
+        );
+        if (idx === -1) return [...readings, updated];
+        const copy = readings.slice();
+        copy[idx] = updated;
+        return copy;
+      });
+    } else if (envelope.event === 'system:alert') {
+      const payload = envelope.payload as BackendAlertPayload;
+      const alert: AppAlert = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: new Date().toISOString(),
+        severity: payload.severity,
+        text: payload.text,
+        read: false,
+      };
+      this._alerts.update((alerts) => [alert, ...alerts]);
+      // Alerts usually coincide with a new activities row (Refill_Chain, fill_timeout) — refresh.
+      void this.refreshActivities();
+    }
+  }
+
+  private async refreshActivities(): Promise<void> {
+    try {
+      this._activities.set(await this.getJson<ActivityRow[]>('/api/activities?limit=50'));
+    } catch (err) {
+      console.error('[state] activities refresh failed:', err);
+    }
+  }
+
+  async refreshInsight(): Promise<void> {
+    if (!isPlatformBrowser(this.platformId)) return;
+    this._aiLoading.set(true);
+    this._aiError.set(null);
+    try {
+      const res = await fetch(`${apiBase()}/api/ai/insight`, { method: 'POST' });
+      if (!res.ok) {
+        this._aiError.set('AI offline');
+        this._aiInsight.set('');
+        return;
+      }
+      const body = (await res.json()) as { text: string };
+      this._aiInsight.set(body.text);
+    } catch (err) {
+      console.error('[state] insight fetch failed:', err);
+      this._aiError.set('AI offline');
+      this._aiInsight.set('');
+    } finally {
+      this._aiLoading.set(false);
+    }
+  }
+
+  markAlertAsRead(id: string): void {
+    this._alerts.update((alerts) => alerts.map((a) => (a.id === id ? { ...a, read: true } : a)));
+  }
+
+  markAllAlertsAsRead(): void {
+    this._alerts.update((alerts) => alerts.map((a) => ({ ...a, read: true })));
+  }
+
+  ngOnDestroy(): void {
+    this.destroyed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.ws?.close();
   }
 }

@@ -7,12 +7,10 @@
 # -----------------------------------------------------------------------------
 # Stage 1 — builder
 # Installs all deps and runs ng build (production SSR).
-# GEMINI_API_KEY is baked into the bundle at build time via angular.json define.
+# No secrets: AI insights go through the backend (POST /api/ai/insight); the
+# Gemini key lives in the backend environment only.
 # -----------------------------------------------------------------------------
 FROM node:20-slim AS builder
-
-ARG GEMINI_API_KEY=""
-ENV GEMINI_API_KEY=${GEMINI_API_KEY}
 
 WORKDIR /app
 

@@ -1,2 +1,3 @@
-declare const GEMINI_API_KEY: string;
-declare const APP_URL: string;
+// Optional global override for the backend origin (see src/app/state.ts).
+// When absent, the dashboard talks to its own origin: /api and /ws.
+declare const API_BASE_URL: string;
