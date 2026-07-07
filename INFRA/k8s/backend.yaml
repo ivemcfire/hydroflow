@@ -102,9 +102,13 @@ spec:
           # Environment variables
           # -----------------------------------------------------------------
           env:
-            # MQTT broker — fixed MetalLB IP for ESP32 sensors
+            # MQTT broker — cluster DNS for the in-cluster backend client (broker moved to infra ns 2026-07-06).
+            # ESP32 sensors on LAN still reach Mosquitto via MetalLB 192.168.100.207;
+            # this env only affects this pod. Using the LB IP from inside the cluster
+            # hair-pins on one6t and RSTs the connection — see k8s-ops skill
+            # references/networking-troubleshooting.md §2–3.
             - name: MQTT_URL
-              value: "mqtt://192.168.100.207:1883"
+              value: "mqtt://mosquitto.infra.svc.cluster.local:1883"
 
             # PostgreSQL — individual vars to match db.js Pool config
             - name: DB_HOST
