@@ -6,23 +6,32 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import {join} from 'node:path';
+import {createProxyMiddleware} from 'http-proxy-middleware';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-/**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/{*splat}', (req, res) => {
- *   // Handle API request
- * });
- * ```
- */
+// Same-origin reverse proxy to the backend: the dashboard calls relative
+// /api + /ws (see state.ts), so one LB IP serves everything and the browser
+// never needs a cross-origin base URL. BACKEND_URL is the in-cluster Service.
+const BACKEND_URL =
+  process.env['BACKEND_URL'] ??
+  'http://hydroflow-backend.hydroflow.svc.cluster.local:3000';
+
+const apiProxy = createProxyMiddleware({
+  target: BACKEND_URL,
+  changeOrigin: true,
+});
+const wsProxy = createProxyMiddleware({
+  target: BACKEND_URL,
+  changeOrigin: true,
+  ws: true,
+});
+app.use('/api', apiProxy);
+app.use('/healthz', apiProxy);
+app.use('/ws', wsProxy);
 
 /**
  * Serve static files from /browser
@@ -53,13 +62,16 @@ app.use((req, res, next) => {
  */
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = process.env['PORT'] || 4000;
-  app.listen(port, (error) => {
+  const server = app.listen(port, (error) => {
     if (error) {
       throw error;
     }
 
     console.log(`Node Express server listening on http://localhost:${port}`);
   });
+  // WebSocket upgrade for the /ws proxy — express routing never sees
+  // upgrade requests, they must be wired on the HTTP server itself.
+  server.on('upgrade', wsProxy.upgrade);
 }
 
 /**
