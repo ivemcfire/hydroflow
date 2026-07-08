@@ -20,18 +20,23 @@ const BACKEND_URL =
   process.env['BACKEND_URL'] ??
   'http://hydroflow-backend.hydroflow.svc.cluster.local:3000';
 
-const apiProxy = createProxyMiddleware({
-  target: BACKEND_URL,
-  changeOrigin: true,
-});
+// Root-mounted with pathFilter — an express mount path (app.use('/api', …))
+// would be stripped before proxying, so the backend would see /state
+// instead of /api/state.
 const wsProxy = createProxyMiddleware({
   target: BACKEND_URL,
   changeOrigin: true,
   ws: true,
+  pathFilter: ['/ws'],
 });
-app.use('/api', apiProxy);
-app.use('/healthz', apiProxy);
-app.use('/ws', wsProxy);
+app.use(
+  createProxyMiddleware({
+    target: BACKEND_URL,
+    changeOrigin: true,
+    pathFilter: ['/api', '/healthz'],
+  }),
+);
+app.use(wsProxy);
 
 /**
  * Serve static files from /browser
